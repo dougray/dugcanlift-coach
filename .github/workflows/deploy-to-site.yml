@@ -1,0 +1,52 @@
+name: Deploy to dugcanlift.com
+
+# Copies coach/ into the dugcanlift-site repo, which GitHub Pages builds and
+# serves at https://www.dugcanlift.com/coach/.
+#
+# That URL is pinned and cannot move: shipped LIFT builds have it compiled into
+# CoachShare.coachURL, the PWA scope is /coach/, and every coach's roster lives
+# in localStorage keyed to that origin. See the Deployment section of README.md.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Coach
+        uses: actions/checkout@v5
+
+      - name: Check out the site
+        uses: actions/checkout@v5
+        with:
+          repository: dougray/dugcanlift-site
+          path: site
+          # A PAT with contents:write on dugcanlift-site. The default
+          # GITHUB_TOKEN is scoped to this repo only and cannot push there.
+          token: ${{ secrets.SITE_DEPLOY_TOKEN }}
+
+      - name: Copy the app across
+        run: |
+          # --delete so a file removed here is removed there; without it the
+          # site keeps serving shell files this repo no longer has, and the
+          # service worker caches them.
+          rsync -av --delete coach/ site/coach/
+
+      - name: Commit and push
+        working-directory: site
+        run: |
+          git config user.name "coach-deploy-bot"
+          git config user.email "actions@github.com"
+          git add coach
+          git diff --staged --quiet && echo "no change" && exit 0
+          git commit -m "Deploy LIFT Coach ${GITHUB_REF_NAME:-manual} [automated]"
+          for attempt in 1 2 3; do
+            git push && exit 0
+            echo "push rejected, rebasing (attempt $attempt)"
+            git pull --rebase origin main
+          done
+          echo "could not push after three attempts" >&2
+          exit 1
