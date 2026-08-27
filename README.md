@@ -77,6 +77,19 @@ This repo is the source of truth. The files are served at
 `https://www.dugcanlift.com/coach/` by copying `coach/` into the
 `dugcanlift-site` repo, which GitHub Pages builds.
 
+```bash
+./deploy.sh --dry-run    # see what would change
+./deploy.sh              # copy, commit, push
+```
+
+It runs from your machine over SSH with the same key every other push to the
+site has used. There is no CI job and no token stored on GitHub — one less
+credential to rotate, and one less thing to go quiet when it expires.
+
+It expects the site checked out at `~/Projects/dugcanlift-site`; set
+`SITE_REPO` if it lives elsewhere. It refuses to run if the site's `coach/` has
+uncommitted changes, because the copy deletes.
+
 **That URL cannot move.** Three things are pinned to it:
 
 - `CoachShare.coachURL` is compiled into shipped LIFT builds on both platforms,
