@@ -28,7 +28,8 @@ backup file* exists for exactly that reason.
 The wire format is [SHARE-FORMAT.md](coach/SHARE-FORMAT.md), shared by all four
 LIFT clients. Change it in one and you change it in four. The backup file the
 apps write is a different thing again — that one is
-[BACKUP-FORMAT.md](coach/BACKUP-FORMAT.md).
+[BACKUP-FORMAT.md](coach/BACKUP-FORMAT.md), and plans going the other way are
+[PLAN-FORMAT.md](coach/PLAN-FORMAT.md).
 
 ## What it shows
 
@@ -41,6 +42,12 @@ goal, bodyweight trend, per-lift estimated 1RM progression, and every session
 expandable down to the individual set.
 
 **Connect** — the invite to send a client, and backup/restore.
+
+**Cook** — recipes you write, a week built for one client, and the shopping
+list that falls out of it. Sends as a link the same way a log arrives, in the
+opposite direction: the plan rides in the fragment, so dugcanlift.com never
+sees it either. A plan is addressed to one client and their app refuses one
+meant for someone else.
 
 ## Setting a client up
 
