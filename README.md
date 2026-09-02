@@ -117,6 +117,32 @@ clients, and all of them must emit identical bytes. Change it in one and you
 change it in four — bump the version, update the spec, and ship the clients
 together.
 
+## Bundled data
+
+Two datasets ship with the app and are searched offline, so the lookups work in
+a kitchen or a gym with no signal.
+
+| File | Rows | Size | Source |
+|---|---|---|---|
+| `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
+| `coach/foods.json` | 7,793 | 634 KB (131 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
+
+`foods.json` is deliberately **not** in the service worker's install bundle;
+634 KB is not something to spend before someone has asked for it. It is cached
+the first time it is actually used, which is what makes the lookup work offline
+without making every install pay for it.
+
+Both are derived files. To rebuild them, take the upstream
+[SR Legacy JSON](https://fdc.nal.usda.gov/download-datasets.html) or the
+exercise database and keep only description, category and the five macros —
+the shapes are documented at the top of `foods.js`.
+
+Neither is a recipe database. There is no open one that carries nutrition:
+TheMealDB has recipes and no macros, Open Food Facts has macros and no recipes,
+and the ones that have both are commercial. So an imported recipe takes its
+shape from TheMealDB and gets costed against USDA, and anything that cannot be
+weighed is reported as uncosted rather than guessed at.
+
 ## License
 
 [GNU AGPL-3.0](LICENSE). The network clause matters for a project like this: if
