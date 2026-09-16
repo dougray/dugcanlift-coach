@@ -111,10 +111,12 @@ The clients are not a superset and a subset of each other. They overlap, and
 each has fields the others have no home for. Those go under `ext.<platform>`,
 keyed by the record id they belong to.
 
-`ext.ios` carries, per recipe: `createdAt` (epoch ms), `sugarG`, `sodiumMg`.
-Per ingredient, keyed by the recipe id and then the ingredient's position:
-`foodRefID`. Per planned meal: `plannedFor` (epoch ms). It currently carries,
-per food entry: `brand`, `servingUnit`,
+`ext.ios.recipes` carries, per recipe: `sugarG`, `sodiumMg`, and
+`ingredientFoodRefIDs` — the position of an ingredient in `ingredients[]`, as a
+string, mapped to its food-database reference. `ext.ios.plan` carries, per
+planned meal: `plannedFor` (epoch ms). iOS's own `createdAt` is written as the
+common `importedAt` rather than duplicated here. `ext.ios` also carries, per
+food entry: `brand`, `servingUnit`,
 `servingGrams`, `sugarG`, `sodiumMg`, `foodRefID`, `healthKitUUID`. Per workout
 day: `focus`, `liveStartedAt`, `liveEndedAt`, `healthKitUUID`. Per exercise:
 `exerciseRefID`, `primaryMuscle`, `orderIndex`. Per set: `orderIndex`,
