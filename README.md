@@ -125,17 +125,20 @@ a kitchen or a gym with no signal.
 | File | Rows | Size | Source |
 |---|---|---|---|
 | `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
-| `coach/foods.json` | 7,793 | 634 KB (131 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
+| `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
 
 `foods.json` is deliberately **not** in the service worker's install bundle;
-634 KB is not something to spend before someone has asked for it. It is cached
+718 KB is not something to spend before someone has asked for it. It is cached
 the first time it is actually used, which is what makes the lookup work offline
 without making every install pay for it.
 
-Both are derived files. To rebuild them, take the upstream
-[SR Legacy JSON](https://fdc.nal.usda.gov/download-datasets.html) or the
-exercise database and keep only description, category and the five macros —
-the shapes are documented at the top of `foods.js`.
+Both are derived files. `foods.json` is a verbatim copy of `lift/foods.json` in
+the dugcanlift-site repo, which is its source of truth: it is built there by
+`scripts/build_foods_json.py` (per 100 g: the five macros, then saturated fat,
+sugar and sodium, null where USDA has no value). Rebuild it there and copy it
+here; the generator is deliberately not duplicated in this repo. The row shape
+is documented at the top of `foods.js`. For the exercises, take the upstream
+database and keep only what `exercises.json` carries.
 
 Neither is a recipe database. There is no open one that carries nutrition:
 TheMealDB has recipes and no macros, Open Food Facts has macros and no recipes,
