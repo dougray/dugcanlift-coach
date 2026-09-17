@@ -1888,6 +1888,8 @@ function openRecipeForm(id) {
   $('#ing-results').innerHTML = '';
   $('#ing-tally').textContent = '';
 
+  // Any in-flight import costing belongs to the form it opened, not this one.
+  importRun++;
   showRecipeForm();
 }
 
