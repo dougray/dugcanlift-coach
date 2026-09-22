@@ -438,6 +438,14 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 table.grid tr:last-child td { border-bottom: none; }
 table.grid td.under { color: var(--accent); }
 
+/* The prescription editor's number fields. At phone width the card sits
+ * inside the form's card, and the general 12px input padding plus the grid's
+ * 10px cell padding left each field about 12px of text -- "40" read as "4".
+ * Tighter here, and centred, so a three-digit weight shows whole at 375px. */
+table.grid.sets td { padding: 7px 4px; }
+table.grid.sets td:first-child { padding-left: 0; }
+table.grid.sets input[type=number] { padding: 10px 4px; text-align: center; min-width: 3.2em; }
+
 .pill {
   display: inline-block;
   border: 1px solid var(--rule);
