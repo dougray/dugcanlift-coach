@@ -2571,7 +2571,7 @@ function renderWorkoutEditor(focusAfter) {
     card.appendChild(sideRow);
 
     const sided = showsSides(exercise);
-    const table = cookEl('table', 'grid');
+    const table = cookEl('table', 'grid sets');
     const header = cookEl('tr');
     ['Set', 'lb', 'Reps', 'RPE', ...(sided ? ['Side'] : []), '']
       .forEach((h) => header.appendChild(cookEl('th', h === 'Side' ? 'side-col' : null, h)));
