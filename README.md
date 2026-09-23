@@ -136,6 +136,13 @@ the two copies must not drift. Edit it in the kit and copy it here; never here
 alone. It is fetched the first time the Road section is opened and cached from
 then on, which means a new copy needs a `CACHE` bump in `sw.js`.
 
+A chain in that file carries two dates: `checkedOn`, the day a person read its
+chart, and the optional `publishedOn`, the date the document states about
+itself (`"2021-03-29"`, or `"2022-11"` where the chart names only a month).
+Coach reads neither — it shows no staleness and never has — but LIFT warns from
+`publishedOn` when a chain has one, so a copy that lost the field here would be
+a copy that had drifted. `road-picks.test.mjs` pins it.
+
 `foods.json` is deliberately **not** in the service worker's install bundle;
 718 KB is not something to spend before someone has asked for it. It is cached
 the first time it is actually used, which is what makes the lookup work offline
