@@ -43,8 +43,10 @@ expandable down to the individual set.
 
 **Connect** — the invite to send a client, and backup/restore.
 
-**Cook** — recipes you write, a week built for one client, and the shopping
-list that falls out of it. Sends as a link the same way a log arrives, in the
+**Cook** — recipes you write, a week built for one client, the shopping
+list that falls out of it, and the Road Food items you are happy with for that
+client — picks that ride in the same link and sit at the top of their list on
+the road. Sends as a link the same way a log arrives, in the
 opposite direction: the plan rides in the fragment, so dugcanlift.com never
 sees it either. A plan is addressed to one client and their app refuses one
 meant for someone else.
@@ -119,13 +121,20 @@ together.
 
 ## Bundled data
 
-Two datasets ship with the app and are searched offline, so the lookups work in
+Three datasets ship with the app and are read offline, so the lookups work in
 a kitchen or a gym with no signal.
 
 | File | Rows | Size | Source |
 |---|---|---|---|
 | `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
 | `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
+| `coach/road-food.json` | 8 chains, 22 snacks | 37 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
+
+`road-food.json` is a verbatim copy of `dugcanlift-kit/data/road-food.json`,
+the file LIFT bundles too — item ids are the contract road picks travel on, so
+the two copies must not drift. Edit it in the kit and copy it here; never here
+alone. It is fetched the first time the Road section is opened and cached from
+then on, which means a new copy needs a `CACHE` bump in `sw.js`.
 
 `foods.json` is deliberately **not** in the service worker's install bundle;
 718 KB is not something to spend before someone has asked for it. It is cached
