@@ -513,3 +513,13 @@ test('the card draws every part of a row, clause included', () => {
   assert.ok(body.includes('row.groups'), 'bookedSets must draw the groups');
   assert.ok(body.includes('row.suffix'), 'bookedSets must draw the suffix');
 });
+
+test('a lift nobody asked for that was all warmups is not "0 sets" on screen', () => {
+  const r = run([{ d: '2026-10-12', x: 0 }],
+    [{ n: 'Lower A', e: [ex('Back Squat', 'Barbell', [[225, 5]])] }],
+    { '2026-10-12': { exercises: [
+      logged('Back Squat', 'Barbell', [set(225, 5)]),
+      logged('Treadmill', 'Machine', [set(null, null, { warmup: true })]),
+    ] } });
+  assert.deepEqual(day(r, 0).alsoLogged, [], 'working sets are the claim everywhere else');
+});
