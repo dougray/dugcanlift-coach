@@ -136,6 +136,19 @@ the two copies must not drift. Edit it in the kit and copy it here; never here
 alone. It is fetched the first time the Road section is opened and cached from
 then on, which means a new copy needs a `CACHE` bump in `sw.js`.
 
+That used to be prose and nothing more. `road-food.sha256` is the kit's
+checksum of those bytes, copied across with the JSON, and `road-picks.test.mjs`
+hashes the file and asserts it matches — the tests either side of it check what
+the data *means*, and pass perfectly well on a copy several chains behind, so
+nothing else here would ever report one.
+
+**When that test fails**, copy `road-food.json` *and* `road-food.sha256` from
+`dugcanlift-kit/data/` over together, and bump `CACHE` in `sw.js`. Never edit
+either file here, and never re-write the checksum by hand to make the test pass:
+the kit writes it with `node data/validate-road-food.mjs --write-checksum`, and
+the other four app repos pin the same one, so a hand-written hash only moves the
+failure somewhere further away.
+
 A chain in that file carries two dates: `checkedOn`, the day a person read its
 chart, and the optional `publishedOn`, the date the document states about
 itself (`"2021-03-29"`, or `"2022-11"` where the chart names only a month).
