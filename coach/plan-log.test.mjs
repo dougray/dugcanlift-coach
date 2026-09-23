@@ -336,6 +336,29 @@ test('by lift stacks the same lines under one heading, by date', () => {
   assert.deepEqual(r.byLift[0].entries.map((e) => e.exercise.logged.text), ['225 × 5', '230 × 5']);
 });
 
+test('by lift shows the weeks a lift was booked and not logged too', () => {
+  const workouts = [{ n: 'Lower A', e: [ex('Back Squat', 'Barbell', [[225, 5]])] }];
+  const r = run([{ d: '2026-10-12', x: 0 }, { d: '2026-10-15', x: 0 }, { d: '2026-10-19', x: 0 }],
+    workouts,
+    { '2026-10-12': { exercises: [logged('Back Squat', 'Barbell', [set(225, 5)])] } },
+    { coverage: ['2026-10-01', '2026-10-16'] });
+  // Shown only on the weeks it was logged, a lift reads steadier than it was.
+  assert.deepEqual(r.byLift[0].entries.map((e) => [e.when, e.exercise.title]), [
+    ['12 Oct', 'Back Squat (Barbell)'],
+    ['15 Oct', 'Back Squat (Barbell) · not logged'],
+    ['19 Oct', 'Back Squat (Barbell) · outside the log they sent'],
+  ]);
+  // And the heading is the lift, never one day's verdict on it.
+  assert.equal(r.byLift[0].title, 'Back Squat (Barbell)');
+});
+
+test('the day view does not recite a missed day\'s prescription', () => {
+  const r = run([{ d: '2026-10-12', x: 0 }],
+    [{ n: 'Lower A', e: [ex('Back Squat', 'Barbell', [[225, 5]])] }], {});
+  assert.deepEqual(day(r, 0).exercises, [], 'the row above already says it');
+  assert.equal(day(r, 0).booked.length, 1, 'but by lift still has it');
+});
+
 /* ---------------- SentPlan ---------------- */
 
 const row = (id, clientId, sentAt, payloadHash) =>
@@ -475,4 +498,18 @@ test('the roster stays a roster: nothing in this feature reaches a roster row', 
     assert.equal(roster.includes(token), false,
       `renderRoster mentions ${token} -- the card counts per client and never across the roster`);
   });
+});
+
+test('the card draws every part of a row, clause included', () => {
+  // Found on screen, not in a test: the card drew an each-side ask's set
+  // groups and dropped its "each side" clause, so a plan asking for six sets
+  // printed three while lines() -- and so every discipline test -- read the
+  // full sentence. A row is groups plus a suffix, and a view that draws one
+  // and not the other is a view that prints a plan nobody wrote.
+  const source = readFileSync('coach/app.js', 'utf8');
+  const start = source.indexOf('function bookedSets(');
+  assert.ok(start > 0, 'bookedSets moved; re-point this test');
+  const body = source.slice(start, source.indexOf('\n}', start));
+  assert.ok(body.includes('row.groups'), 'bookedSets must draw the groups');
+  assert.ok(body.includes('row.suffix'), 'bookedSets must draw the suffix');
 });

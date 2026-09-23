@@ -373,13 +373,20 @@
     return text;
   }
 
-  function pairLines(asked, logged, unit, substituted) {
+  /** `absentWord` is what a lift with nothing logged against it says: "not
+   *  logged" on a day the client sent, "outside the log they sent" on a day
+   *  they did not. The second exists so the first is never claimed wrongly. */
+  function pairLines(asked, logged, unit, substituted, absentWord) {
     var side = sideLine(asked, logged);
     var askedSets = asked.sets || [];
     var loggedSets = logged ? logged.sets : [];
+    var lift = title(asked) + (asked.eachSide ? ' · each side' : '');
     var out = {
       key: asked.key,
-      title: title(asked) + (asked.eachSide ? ' · each side' : ''),
+      // The lift on its own, for a heading that is about the lift and not
+      // about one day of it.
+      lift: lift,
+      title: lift,
       state: logged ? 'logged' : 'notLogged',
       substitution: substituted && logged
         ? 'Asked ' + equipmentWord(asked.equipment) + ' · logged ' + equipmentWord(logged.equipment)
@@ -395,16 +402,25 @@
       logged: logged
         ? { label: 'Logged', groups: setGroups(loggedSets, unit) } : null,
     };
-    if (out.asked) out.asked.text = groupsText(out.asked.groups)
-      + (asked.eachSide ? ' each side' : '');
-    if (out.logged) out.logged.text = groupsText(out.logged.groups);
+    // "each side" is a clause on the ask, not a set of its own, so it is its
+    // own field rather than glued onto the last group's text -- a view that
+    // draws the groups and forgets the clause would otherwise print a plan
+    // that asks for half of what it asks for.
+    if (out.asked) {
+      out.asked.suffix = asked.eachSide ? ' each side' : '';
+      out.asked.text = groupsText(out.asked.groups) + out.asked.suffix;
+    }
+    if (out.logged) {
+      out.logged.suffix = '';
+      out.logged.text = groupsText(out.logged.groups);
+    }
     // How many were asked for and how many came back, when they differ and
     // there is no side line already saying it per side.
     if (logged && !side && askedSets.length !== loggedSets.length) {
       out.countLine = 'Asked ' + plural(askedSets.length, 'set', 'sets')
         + ' · logged ' + loggedSets.length;
     }
-    if (!logged) out.title += ' · not logged';
+    if (!logged) out.title += ' · ' + (absentWord || 'not logged');
     return out;
   }
 
@@ -438,7 +454,9 @@
     });
 
     return {
-      exercises: pairs.map(function (p) { return pairLines(p.asked, p.logged, unit, p.substituted); }),
+      exercises: pairs.map(function (p) {
+        return pairLines(p.asked, p.logged, unit, p.substituted, 'not logged');
+      }),
       alsoLogged: remaining.map(function (ex) {
         return {
           key: ex.key,
@@ -526,6 +544,14 @@
           text: [dayLabel(booking.date), booking.name, word].filter(Boolean).join(' · '),
           exercises: joined.exercises,
           alsoLogged: joined.alsoLogged,
+          // What this day booked, whatever became of it. The day view does not
+          // draw these on a day nobody logged -- the row above already says so,
+          // and reciting the prescription under it turns a fact into a list of
+          // what someone did not do. The by-lift view does need them: a lift
+          // shown only on the weeks it was logged reads steadier than it was.
+          booked: state === 'logged' ? [] : booking.exercises.map(function (ex) {
+            return pairLines(ex, null, unit, false, word);
+          }),
         };
       });
 
@@ -543,6 +569,7 @@
           name: days[key].name || '',
           text: [dayLabel(key), days[key].name || '', 'not booked'].filter(Boolean).join(' · '),
           exercises: [],
+          booked: [],
           alsoLogged: loggedIn(days[key]).map(function (ex) {
             return { key: ex.key, title: title(ex), state: 'alsoLogged',
               text: title(ex) + ' · ' + plural(ex.sets.length, 'set', 'sets') };
@@ -578,7 +605,7 @@
     var byKey = {};
     groups.forEach(function (group) {
       group.days.forEach(function (day) {
-        day.exercises.forEach(function (ex) {
+        day.exercises.concat(day.booked || []).forEach(function (ex) {
           if (!byKey[ex.key]) {
             byKey[ex.key] = { key: ex.key, title: '', entries: [] };
             order.push(ex.key);
@@ -590,9 +617,9 @@
     return order.map(function (key) {
       var lift = byKey[key];
       lift.entries.sort(function (a, b) { return a.key.localeCompare(b.key); });
-      // The heading is the exercise as the card already titles it, minus the
-      // per-day "· not logged" clause, which belongs to a day and not a lift.
-      lift.title = lift.entries[0].exercise.title.replace(' · not logged', '');
+      // The heading is the lift, without the per-day clause: whether one day
+      // of it was logged belongs to that day and not to the lift.
+      lift.title = lift.entries[0].exercise.lift;
       return lift;
     });
   }
@@ -625,6 +652,25 @@
         }
       });
     });
+    // The other way round. The same lines under a lift's heading rather than
+    // a day's, so the second view is pinned by the same tests as the first
+    // rather than being the one place a sentence could slip through.
+    if ((result.byLift || []).length) {
+      out.push('By lift');
+      result.byLift.forEach(function (lift) {
+        out.push(lift.title);
+        lift.entries.forEach(function (entry) {
+          out.push(entry.when);
+          var ex = entry.exercise;
+          if (ex.state !== 'logged') out.push(ex.title);
+          if (ex.sideLine) out.push(ex.sideLine);
+          if (ex.countLine) out.push(ex.countLine);
+          if (ex.asked) out.push(ex.asked.label + ' ' + ex.asked.text);
+          if (ex.logged) out.push(ex.logged.label + ' ' + ex.logged.text);
+          if (ex.substitution) out.push(ex.substitution);
+        });
+      });
+    }
     if (out.length) out.push(result.footer);
     return out;
   }
