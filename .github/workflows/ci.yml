@@ -30,5 +30,8 @@ jobs:
       # Includes the road-food.sha256 check: this copy of the kit's file is
       # what a coach's picks are ticked against, and deploy.sh ships whatever
       # is here straight to the live site.
+      # The files are listed by glob rather than as "coach/", because node 24
+      # reads a bare directory as a module to load and fails; node 26 walks it.
+      # Spelling out the files works on both.
       - name: Unit tests
-        run: node --test coach/
+        run: node --test coach/*.test.mjs
