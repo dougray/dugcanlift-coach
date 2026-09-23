@@ -18,6 +18,10 @@ const KEY = { clients: 'coach.clients', settings: 'coach.settings' };
 const COOK_KEY = { recipes: 'coach.recipes', plans: 'coach.plans',
                    roadPicks: 'coach.roadPicks' };
 const TRAIN_KEY = { workouts: 'coach.workouts', sessions: 'coach.sessions' };
+// What was actually sent, per client, so a plan is still there after it has
+// left. Beside the others for the same reason: the backup and the Connect
+// tab's storage note both need every key. See plan-log.js.
+const PLAN_KEY = { sentPlans: 'coach.sentPlans' };
 
 function load(key, fallback) {
   try {
@@ -46,6 +50,17 @@ function save(key, value) {
  * that point it only makes every read harder. */
 let clients = load(KEY.clients, []);
 let settings = load(KEY.settings, { name: '', email: '', unit: null });
+
+/* One row per send: the plan payload as JSON exactly as encoded, with the
+ * canonical hash of it. Coach built the link fresh on every render and handed
+ * it straight to the clipboard, so editing "Lower A" after sending left the
+ * store no longer saying what the client got -- and the client page could
+ * never put what was booked beside what came back. See plan-log.js.
+ *
+ * Declared up here with the roster rather than down in COOK beside the plans
+ * it records, because the client page reads it and render() can run at module
+ * scope before the COOK section is evaluated. */
+let sentPlans = load(PLAN_KEY.sentPlans, []);
 
 const persist = () => save(KEY.clients, clients);
 
@@ -1201,7 +1216,7 @@ function renderConnect() {
     } catch (e) { return []; }
   };
   const keys = [KEY.clients, COOK_KEY.recipes, COOK_KEY.plans, COOK_KEY.roadPicks,
-    TRAIN_KEY.workouts, TRAIN_KEY.sessions];
+    TRAIN_KEY.workouts, TRAIN_KEY.sessions, PLAN_KEY.sentPlans];
   const bytes = keys.reduce(
     (total, key) => total + new Blob([localStorage.getItem(key) || '']).size, 0);
   const recipeCount = stored(COOK_KEY.recipes).length;
@@ -1298,8 +1313,12 @@ function saveBackup() {
   // Road picks are a map of client id to item ids, not a list of rows with
   // ids of their own, so they are written as they are stored rather than
   // merged by id on the way back in. See restoreLibrary.
+  // Sent plans ride as rows with ids of their own, so they merge by id the
+  // way recipes and workouts do. Omitted when there are none, so a coach who
+  // has never sent a plan writes the file they always did.
   const payload = { v: 2, clients, settings, recipes, plans, workouts, sessions,
     roadPicks };
+  if (sentPlans.length) payload.sentPlans = sentPlans;
   const blob = new Blob([JSON.stringify(payload, null, 1)],
     { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1353,6 +1372,14 @@ function restoreLibrary(parsed) {
     if (picked) added.push(`${picked} road pick${picked === 1 ? '' : 's'}`);
     save(COOK_KEY.roadPicks, roadPicks);
   }
+
+  // Sent plans: rows with ids, merged by id and never deleted by an older
+  // file -- the library half's rule. A file written before sent plans existed
+  // has no key at all and changes nothing.
+  const sent = CoachPlanLog.mergeBackup(sentPlans, parsed.sentPlans);
+  sentPlans = sent.rows;
+  if (sent.added) added.push(`${sent.added} sent plan${sent.added === 1 ? '' : 's'}`);
+  save(PLAN_KEY.sentPlans, sentPlans);
 
   save(COOK_KEY.recipes, recipes);
   save(COOK_KEY.plans, plans);
@@ -1534,7 +1561,7 @@ $('#empty-demo').onclick = () => {
 $('#client-remove').onclick = () => {
   const client = currentClient();
   if (!client) return;
-  const stores = { clients, plans, sessions, roadPicks };
+  const stores = { clients, plans, sessions, roadPicks, sentPlans };
   const impact = CoachClientRemoval.impact(client.id, stores);
   if (!impact) return;
   if (!confirm(CoachClientRemoval.confirmationPrompt(impact))) return;
@@ -1544,10 +1571,12 @@ $('#client-remove').onclick = () => {
   plans = after.plans;
   sessions = after.sessions;
   roadPicks = after.roadPicks;
+  sentPlans = after.sentPlans;
   persist();
   save(COOK_KEY.plans, plans);
   save(TRAIN_KEY.sessions, sessions);
   save(COOK_KEY.roadPicks, roadPicks);
+  save(PLAN_KEY.sentPlans, sentPlans);
   openClientId = null;
   $('#tab-client').disabled = true;
   showTab('roster');
@@ -1684,6 +1713,7 @@ let plans = load(COOK_KEY.plans, []);
  * the spec keeps them stable for exactly this. See road-picks.js. */
 let roadPicks = load(COOK_KEY.roadPicks, {});
 
+
 const LIFT_URL = 'https://www.dugcanlift.com/lift/';
 
 const recipeById = (id) => recipes.find((r) => r.id === id);
@@ -1746,6 +1776,51 @@ function loadRoadFood() {
  * inside a link an email client will not mangle.
  */
 async function encodePlan(clientId) {
+  const payload = planPayload(clientId);
+  if (!payload) return null;
+  // 'u' is the uncompressed fallback the decoder already understands, for
+  // browsers without CompressionStream.
+  const body = await CoachPrescriptions.pack(JSON.stringify(payload));
+  return `${LIFT_URL}#1${body}`;
+}
+
+/* The same link, recorded as it goes.
+ *
+ * Every way of sending a plan goes through here, and `encodePlan` alone stays
+ * side-effect-free -- the size note under the buttons re-encodes on every
+ * render, and recording from there would file a plan nobody sent.
+ *
+ * Recorded when the coach asks for the link, not when a client receives one:
+ * the clipboard and a mail app are both past where this page can see, and no
+ * platform sees into either. A plan a coach copied and did not send may be
+ * recorded, which is the accepted cost; the card says so in its own words and
+ * never claims the link arrived. An abandoned copy is re-copied identically a
+ * moment later, and the hash reads that as one plan rather than two. */
+async function sendPlan(clientId) {
+  const payload = planPayload(clientId);
+  if (!payload) return null;
+  const body = await CoachPrescriptions.pack(JSON.stringify(payload));
+  await recordSentPlan(clientId, payload);
+  return `${LIFT_URL}#1${body}`;
+}
+
+async function recordSentPlan(clientId, payload) {
+  try {
+    sentPlans = CoachPlanLog.record(sentPlans, {
+      id: newId(),
+      clientId,
+      sentAt: Math.floor(Date.now() / 1000),
+      payloadHash: await CoachPlanLog.hash(payload),
+      payload,
+    });
+    save(PLAN_KEY.sentPlans, sentPlans);
+  } catch (e) {
+    // A record that cannot be written must never stop a plan being sent.
+    console.warn('could not record the sent plan', e);
+  }
+}
+
+function planPayload(clientId) {
   const client = clients.find((c) => c.id === clientId);
   const mine = plans.filter((p) => p.clientId === clientId);
   const myTraining = sessions.filter((k) => k.clientId === clientId);
@@ -1808,10 +1883,7 @@ async function encodePlan(clientId) {
   // and it skips an id it does not know. See PLAN-FORMAT.md "Road picks".
   if (picks) payload.rf = picks;
 
-  // 'u' is the uncompressed fallback the decoder already understands, for
-  // browsers without CompressionStream.
-  const body = await CoachPrescriptions.pack(JSON.stringify(payload));
-  return `${LIFT_URL}#1${body}`;
+  return payload;
 }
 
 /* Builds a link carrying a recipe or a workout on its own, with nothing
@@ -2346,7 +2418,7 @@ async function updatePlanSize() {
 }
 
 $('#plan-copy').onclick = async () => {
-  const link = await encodePlan(planClientId);
+  const link = await sendPlan(planClientId);
   if (!link) return;
   try {
     await navigator.clipboard.writeText(link);
@@ -2358,7 +2430,7 @@ $('#plan-copy').onclick = async () => {
 };
 
 $('#plan-mail').onclick = async () => {
-  const link = await encodePlan(planClientId);
+  const link = await sendPlan(planClientId);
   if (!link) return;
   mailPlan(planClientId, link);
 };
@@ -3185,7 +3257,7 @@ $('#w-delete').onclick = () => {
 };
 
 $('#tplan-copy').onclick = async () => {
-  const link = await encodePlan(trainClientId);
+  const link = await sendPlan(trainClientId);
   if (!link) { alert('Nothing planned for this client yet.'); return; }
   try {
     await navigator.clipboard.writeText(link);
@@ -3197,7 +3269,7 @@ $('#tplan-copy').onclick = async () => {
 };
 
 $('#tplan-mail').onclick = async () => {
-  const link = await encodePlan(trainClientId);
+  const link = await sendPlan(trainClientId);
   if (!link) { alert('Nothing planned for this client yet.'); return; }
   mailPlan(trainClientId, link);
 };
