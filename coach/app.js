@@ -625,6 +625,7 @@ function renderClient() {
   renderBodyweight(client, unit);
   renderLifts(client, unit);
   renderOutdoor(client, unit);
+  renderBooked(client, unit);
   renderSessions(client, unit);
 }
 
@@ -1091,6 +1092,145 @@ function setText(set, unit) {
   if (set.rpe != null) bits.push(`@${set.rpe}`);
   if (set.warmup) bits.push('warm-up');
   return bits.join(' · ') || '—';
+}
+
+/* ---------------- booked ----------------
+ *
+ * What the coach booked, beside what the client logged. The rules -- which
+ * day joins which, which lift answers which, and every sentence on screen --
+ * are plan-log.js, which node tests; this draws what it returns and decides
+ * nothing of its own.
+ *
+ * It sits here, above Sessions and below the summary cards, because Train is
+ * where a coach writes and the client page is where a coach reads, and this
+ * is reading. Absent entirely for a client never sent a plan: plans sent
+ * before this existed cannot be reconstructed, and a line saying so is a line
+ * every coach reads once and never again.
+ *
+ * **Counting, never grading.** Every day row is the same weight and the same
+ * colour, whichever of the four states it is in. The nearest precedent in
+ * this file goes the other way -- the Weeks table puts an `.under` class on a
+ * protein average below 90% of goal -- and this deliberately does not follow
+ * it. A macro goal is a number on a dial; a booked day nobody logged is a
+ * person's week.
+ */
+
+let bookedMode = 'day';
+
+function bookedSets(parent, row) {
+  const line = el('div', 'setline');
+  line.appendChild(el('b', null, row.label + ' '));
+  row.groups.forEach((group) => {
+    const span = el('span', 'sidegroup');
+    if (group.label) span.appendChild(el('b', null, group.label + ' '));
+    span.appendChild(document.createTextNode(group.text));
+    line.appendChild(span);
+  });
+  // "each side" is a clause on what was asked for, not a set: the groups
+  // above are three rows and this is what makes them six.
+  if (row.suffix) line.appendChild(document.createTextNode(row.suffix));
+  parent.appendChild(line);
+}
+
+function bookedExercise(parent, ex) {
+  const block = el('div', 'exercise');
+  block.appendChild(el('h3', null, ex.title));
+  if (ex.sideLine) block.appendChild(el('div', 'setline muted', ex.sideLine));
+  if (ex.countLine) block.appendChild(el('div', 'setline muted', ex.countLine));
+  if (ex.asked) bookedSets(block, ex.asked);
+  if (ex.logged) bookedSets(block, ex.logged);
+  if (ex.substitution) block.appendChild(el('div', 'setline muted', ex.substitution));
+  parent.appendChild(block);
+}
+
+function bookedAlsoLogged(parent, list) {
+  if (!list.length) return;
+  const block = el('div', 'exercise');
+  block.appendChild(el('h3', null, 'Also logged'));
+  list.forEach((ex) => block.appendChild(el('div', 'setline', ex.text)));
+  parent.appendChild(block);
+}
+
+function bookedDay(parent, day) {
+  const has = day.exercises.length || day.alsoLogged.length;
+  if (!has) {
+    // A day with nothing under it is the same line in the same weight, just
+    // without a disclosure triangle.
+    parent.appendChild(el('div', 'bookedday flat', day.text));
+    return;
+  }
+  const details = el('details', 'session booked');
+  const summary = el('summary');
+  summary.appendChild(el('div', 'bookedday', day.text));
+  details.appendChild(summary);
+  const body = el('div', 'body');
+  day.exercises.forEach((ex) => bookedExercise(body, ex));
+  bookedAlsoLogged(body, day.alsoLogged);
+  details.appendChild(body);
+  parent.appendChild(details);
+}
+
+function renderBooked(client, unit) {
+  const node = $('#client-booked');
+  const heading = $('#client-booked-heading');
+  const modes = $('#client-booked-modes');
+  node.innerHTML = '';
+
+  const result = CoachPlanLog.compare({
+    clientId: client.id,
+    sentPlans,
+    days: client.days,
+    coverage: client.coverage,
+    unit,
+    weeks: 8,
+  });
+
+  if (!result.groups.length) {
+    heading.classList.add('hidden');
+    modes.classList.add('hidden');
+    modes.innerHTML = '';
+    return;
+  }
+  heading.classList.remove('hidden');
+  modes.classList.remove('hidden');
+  chipRow(modes,
+    [{ label: 'By day', v: 'day' }, { label: 'By lift', v: 'lift' }],
+    (i) => i.v === bookedMode,
+    (i) => { bookedMode = i.v; renderBooked(client, unit); });
+
+  if (bookedMode === 'lift') {
+    result.byLift.forEach((lift) => {
+      const card = el('div', 'card');
+      card.appendChild(el('strong', 'cardtitle', lift.title));
+      lift.entries.forEach((entry) => {
+        const ex = entry.exercise;
+        const block = el('div', 'exercise');
+        block.appendChild(el('h3', null, entry.when));
+        // A day with nothing logged against this lift says so in the rule's
+        // own words -- "not logged" on a day the client sent, "outside the
+        // log they sent" on a day they did not.
+        if (ex.state !== 'logged') block.appendChild(el('div', 'setline', ex.title));
+        if (ex.sideLine) block.appendChild(el('div', 'setline muted', ex.sideLine));
+        if (ex.countLine) block.appendChild(el('div', 'setline muted', ex.countLine));
+        if (ex.asked) bookedSets(block, ex.asked);
+        if (ex.logged) bookedSets(block, ex.logged);
+        if (ex.substitution) block.appendChild(el('div', 'setline muted', ex.substitution));
+        card.appendChild(block);
+      });
+      node.appendChild(card);
+    });
+  } else {
+    result.groups.forEach((group) => {
+      const card = el('div', 'card');
+      card.appendChild(el('strong', 'cardtitle', group.head));
+      group.days.forEach((day) => bookedDay(card, day));
+      node.appendChild(card);
+    });
+  }
+
+  // Permanently, whatever is above it: Coach knows what it put on a
+  // clipboard and nothing after that.
+  node.appendChild(el('p', 'muted small', result.footer));
 }
 
 function renderSessions(client, unit) {
