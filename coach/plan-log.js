@@ -457,14 +457,20 @@
       exercises: pairs.map(function (p) {
         return pairLines(p.asked, p.logged, unit, p.substituted, 'not logged');
       }),
-      alsoLogged: remaining.map(function (ex) {
-        return {
-          key: ex.key,
-          title: title(ex),
-          state: 'alsoLogged',
-          text: title(ex) + ' · ' + plural(ex.sets.length, 'set', 'sets'),
-        };
-      }),
+      // Working sets are the claim everywhere else here, so a lift nobody
+      // asked for that came back as warmups alone is not "0 sets" on screen.
+      alsoLogged: remaining.filter(function (ex) { return ex.sets.length; }).map(alsoLogged),
+    };
+  }
+
+  /** A lift the log has and the plan does not: its name and how many working
+   *  sets it carried, counted against nothing. */
+  function alsoLogged(ex) {
+    return {
+      key: ex.key,
+      title: title(ex),
+      state: 'alsoLogged',
+      text: title(ex) + ' · ' + plural(ex.sets.length, 'set', 'sets'),
     };
   }
 
@@ -570,10 +576,8 @@
           text: [dayLabel(key), days[key].name || '', 'not booked'].filter(Boolean).join(' · '),
           exercises: [],
           booked: [],
-          alsoLogged: loggedIn(days[key]).map(function (ex) {
-            return { key: ex.key, title: title(ex), state: 'alsoLogged',
-              text: title(ex) + ' · ' + plural(ex.sets.length, 'set', 'sets') };
-          }),
+          alsoLogged: loggedIn(days[key])
+            .filter(function (ex) { return ex.sets.length; }).map(alsoLogged),
         });
       });
       rows.sort(function (a, b) { return a.key.localeCompare(b.key); });
