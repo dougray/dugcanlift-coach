@@ -104,3 +104,27 @@ test('counts and the summary line count only what this copy has', () => {
   assert.equal(R.summary(['gone-from-the-menu-2019'], DATA), '',
     'an id nothing here knows is not counted on screen, though it still travels');
 });
+/* ---------------- the fixture ---------------- */
+
+// coach/fixtures/web-plan-road-picks.txt: a link this app's own encoder wrote
+// in a browser, with picks at two chains and a gas-station snack plus one id
+// that is deliberately not in the file. The same bytes are checked into
+// dugcanlift-site as lift/fixtures/web-plan-road-picks.txt, and the iOS and
+// Android decoders read this file too. Never regenerate it from a decoder.
+const FIXTURE = readFileSync('coach/fixtures/web-plan-road-picks.txt', 'utf8');
+
+test('the road-picks fixture carries rf as a flat list of ids', async () => {
+  const payload = JSON.parse(await P.unpack(FIXTURE));
+  assert.equal(payload.v, 1, 'purely additive: no version bump');
+  assert.equal(payload.t, 'plan');
+  assert.ok(Array.isArray(payload.rf));
+  assert.ok(payload.rf.every((id) => typeof id === 'string'));
+  assert.deepEqual(R.fromWire(payload.rf), payload.rf, 'already normalised');
+
+  const index = R.index(DATA);
+  const places = new Set(payload.rf.filter((id) => index[id]).map((id) => index[id].placeId));
+  assert.ok(places.size >= 3, 'two chains and the gas station at least');
+  assert.ok(places.has('snacks'), 'a gas-station snack');
+  assert.equal(R.missing(payload.rf, DATA).length, 1,
+    'exactly one id the data does not have, so a decoder\'s skip rule is exercised');
+});
