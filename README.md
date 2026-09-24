@@ -139,7 +139,7 @@ a kitchen or a gym with no signal.
 |---|---|---|---|
 | `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
 | `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
-| `coach/road-food.json` | 11 chains, 22 snacks | 48 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
+| `coach/road-food.json` | 13 chains, 22 snacks | 55 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
 
 `road-food.json` is a verbatim copy of `dugcanlift-kit/data/road-food.json`,
 the file LIFT bundles too — item ids are the contract road picks travel on, so
