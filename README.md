@@ -38,8 +38,19 @@ against last week, average calories against target, and how often protein
 landed. Anyone silent for a week floats to the top with a banner.
 
 **Client** — week-by-week table, training volume, calories and protein against
-goal, bodyweight trend, per-lift estimated 1RM progression, and every session
-expandable down to the individual set.
+goal, bodyweight trend, per-lift estimated 1RM progression, **Booked** — the
+week you sent against the week they logged — and every session expandable down
+to the individual set.
+
+Booked counts and never grades. It says a day was booked and whether one was
+logged, puts the sets you asked for above the sets that came back, and stops:
+no score, no percentage, no colour on an absence, nothing carried across weeks
+and nothing comparing one client to another. The words are *not logged*, never
+"missed" — a client may have trained and not sent, been ill, or been told to
+rest, and Coach cannot tell those apart. A day past the end of the window they
+sent reads *outside the log they sent* instead, so the first is never claimed
+wrongly. It needs a plan sent from this device after the feature shipped; plans
+sent before it cannot be reconstructed and are simply absent.
 
 **Connect** — the invite to send a client, and backup/restore.
 
@@ -128,7 +139,7 @@ a kitchen or a gym with no signal.
 |---|---|---|---|
 | `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
 | `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
-| `coach/road-food.json` | 11 chains, 22 snacks | 48 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
+| `coach/road-food.json` | 13 chains, 22 snacks | 55 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
 
 `road-food.json` is a verbatim copy of `dugcanlift-kit/data/road-food.json`,
 the file LIFT bundles too — item ids are the contract road picks travel on, so
