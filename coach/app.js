@@ -2393,9 +2393,7 @@ function openRecipeForm(id) {
 
 /* Unhides the editor and brings it on screen. Every way in needs both: the
  * form sits below the recipe list at every width, so a form that is only
- * unhidden -- or only filled -- can be a full list's height out of sight. The
- * import once filled it without opening it at all, and a recipe it found was
- * invisible unless the coach happened to have pressed New recipe first. */
+ * unhidden -- or only filled -- can be a full list's height out of sight. */
 function showRecipeForm() {
   const form = $('#recipe-form');
   form.classList.remove('hidden');
@@ -3716,8 +3714,8 @@ $('#rp-go').onclick = () => {
     return;
   }
 
-  // Panel first, as with the import: hiding it after the form scrolled into
-  // view would pull the form up past the top of the screen.
+  // Panel first: hiding it after the form scrolled into view would pull the
+  // form up past the top of the screen.
   $('#rp-panel').classList.add('hidden');
   openRecipeForm(null);
 
