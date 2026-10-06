@@ -182,9 +182,9 @@ database and keep only what `exercises.json` carries.
 
 Neither is a recipe database. There is no open one that carries nutrition:
 TheMealDB has recipes and no macros, Open Food Facts has macros and no recipes,
-and the ones that have both are commercial. So an imported recipe takes its
-shape from TheMealDB and gets costed against USDA, and anything that cannot be
-weighed is reported as uncosted rather than guessed at.
+and the ones that have both are commercial. So a pasted recipe is costed
+against USDA, and anything that cannot be weighed is reported as uncosted rather
+than guessed at.
 
 ## License
 
