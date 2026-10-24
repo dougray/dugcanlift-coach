@@ -130,8 +130,8 @@ later deleted.
 barcode, so the next scan finds it: `code`, `name`, `brand`, `per100g` of
 `{ calories, proteinG, carbsG, fatG, fiberG, saturatedFatG, sugarG, sodiumMg }`
 (the `food[]` spellings, per 100 g), `servingGrams`, `rememberedAt`, `updatedAt`
-(epoch ms). Written today by LIFT iPhone; LIFT for Android and the browser build
-will adopt it. The section is omitted when there are none, and it is never part
+(epoch ms). Written by LIFT iPhone from the release that adds its barcode
+scanner; LIFT for Android and the browser build will adopt it. The section is omitted when there are none, and it is never part
 of a share to a coach — backups only.
 
 `code` is the barcode **normalised**: digits only, leading zeros stripped, so
