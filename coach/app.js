@@ -4241,8 +4241,8 @@ async function consumeRecipeLink(text) {
     return;
   }
   if (!decoded) {
-    showRecipeLinkError('The link was cut short or changed on the way. Open the '
-      + 'recipe page and tap Send to Coach again.');
+    showRecipeLinkError('That recipe link could not be read, so nothing was added. '
+      + 'Open the recipe page and tap Send to Coach again.');
     return;
   }
   const found = CoachRecipeLink.recipeFrom(decoded, recipeFromJsonLdPayload);
@@ -4310,12 +4310,8 @@ function openImportedRecipe(fill) {
   // under it; that is kept on the recipe for whoever reopens it.
   renderRecipeEstimated(n ? { nutritionPerServing: n } : null);
 
-  const host = new URL(fill.source.sourceUrl).host;
-  const said = [n
-    ? `From ${host}. The macros are the page's own, per serving.`
-    : `From ${host}. The page gave no macros, so look the ingredients up above or type them in.`];
+  const said = [`From ${new URL(fill.source.sourceUrl).host}. Check it, then Save.`];
   if (!fill.servings) said.push('The page did not say how many this serves; set it before saving.');
-  said.push('Nothing is saved until you tap Save.');
   $('#ing-tally').textContent = said.join(' ');
 }
 
