@@ -62,6 +62,11 @@ opposite direction: the plan rides in the fragment, so dugcanlift.com never
 sees it either. A plan is addressed to one client and their app refuses one
 meant for someone else.
 
+A recipe gets into Cook four ways: written by hand, copied from the bundled
+catalogue, pasted as text, or sent from a recipe website with the **Send to
+Coach** bookmarklet (Cook → *Send recipes from your browser*). See "Recipe
+links" below.
+
 ## Setting a client up
 
 Once, per client. Connect → fill in your name and the address logs should come
@@ -132,7 +137,7 @@ together.
 
 ## Bundled data
 
-Four datasets ship with the app and are read offline, so the lookups work in
+Five datasets ship with the app and are read offline, so the lookups work in
 a kitchen or a gym with no signal.
 
 | File | Rows | Size | Source |
@@ -141,6 +146,7 @@ a kitchen or a gym with no signal.
 | `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
 | `coach/road-food.json` | 13 chains, 22 snacks | 55 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
 | `coach/recipes.json` | 622 recipes | 1.0 MB (200 KB gzipped) | `dugcanlift-kit/data/recipes.json`, exported from the kit's `recipes.db` |
+| `coach/bookmarklets.json` | 4 bookmarklets | 5 KB | `dugcanlift-kit/bookmarklet/bookmarklets.json`, built from `send-recipe.js` |
 
 `road-food.json` is a verbatim copy of `dugcanlift-kit/data/road-food.json`,
 the file LIFT bundles too — item ids are the contract road picks travel on, so
@@ -204,6 +210,43 @@ library copy as `sourceAuthor`. **Attribution does not travel on the plan
 wire** — PLAN-FORMAT has no field for it — so a CC BY-SA recipe sent to a
 client arrives uncredited. That is the iPhone's open question too, and it needs
 a wire-format decision across all the clients, not a patch here.
+
+## Recipe links
+
+The **Send to Coach** bookmarklet reads a recipe page the coach already has
+open and comes here with the page's address and the raw text of its
+schema.org JSON-LD blocks in the fragment:
+
+```
+https://www.dugcanlift.com/coach/#r1<base64url(deflate-raw(JSON))>
+JSON = {"v":1,"url":"<page address>","jsonld":["<block text>", ...]}
+```
+
+Coach never requests the page, and the fragment never reaches a server. The
+format, the bookmarklet's source and the reference decoder are
+`dugcanlift-kit/bookmarklet/`; its README's "Rules every build follows" bind
+this app too. `recipe-link.js` is the port of the decoder, with the same
+refusals, and `recipe-link.test.mjs` checks it against the kit's fixture pair
+(`coach/fixtures/recipe-link.txt` and `recipe-link-expected.json`, written by
+the bookmarklet itself; never regenerate them here).
+
+A log link's fragment opens with its version number (`1z`, `1u`) and a recipe
+link's with `r1`, and `consumeAny` in `app.js` routes on that before either
+decoder runs. Like a log link, a recipe link is stripped from the address with
+`history.replaceState` as soon as it is read. The blocks go to
+`recipeFromJsonLdPayload` in `recipe-import.js`, unchanged (LIFT web copies
+that file whole), and the recipe opens in the recipe form for the coach to
+check: servings only from the page's own yield, the page's nutrition kept
+and marked an estimate, the page address kept as the recipe's `sourceUrl`.
+Nothing is saved until Save. A link that cannot be read, or a page with no
+recipe in it, says so and fills nothing.
+
+`bookmarklets.json` and `bookmarklets.sha256` are verbatim copies of the
+kit's, pinned the way `recipes.json` is: `recipe-link.test.mjs` hashes the
+bytes. Copy both together, bump `CACHE`, and never edit either here. Cook →
+*Send recipes from your browser* shows its `coachWeb` entry, to drag to a
+bookmarks bar or copy into a phone bookmark. It is small enough to sit in the
+service worker's install bundle.
 
 ## License
 
