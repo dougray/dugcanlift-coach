@@ -2504,15 +2504,24 @@ $('#r-save').onclick = () => {
 
   if (editingRecipeId) {
     recipes = recipes.map((r) => (r.id === editingRecipeId ? { ...r, ...body } : r));
+    save(COOK_KEY.recipes, recipes);
   } else {
-    recipes.push({ id: cookUid(), ...body });
+    addLibraryRecipe(body);
   }
 
-  save(COOK_KEY.recipes, recipes);
   $('#recipe-form').classList.add('hidden');
   editingRecipeId = null;
   renderCook();
 };
+
+/* A new recipe in the library. The form's Save and the catalogue's Add both
+ * come through here, so a copied recipe is an ordinary one from then on. */
+function addLibraryRecipe(body) {
+  const recipe = { id: cookUid(), ...body };
+  recipes.push(recipe);
+  save(COOK_KEY.recipes, recipes);
+  return recipe;
+}
 
 function renderCookPlan() {
   const select = $('#plan-client');
@@ -3864,6 +3873,7 @@ renderIngredientSources();
  * quantities on save, and still refuses to weigh a volume.
  */
 $('#rp-open').onclick = () => {
+  closePanel($('#rc-panel'));
   $('#rp-panel').classList.remove('hidden');
   $('#rp-note').textContent = '';
   $('#rp-text').focus();
@@ -3901,4 +3911,242 @@ $('#rp-go').onclick = () => {
   $('#ing-tally').textContent = parsed.servings
     ? advice
     : advice + ' The text did not say how many this serves; set it before sending.';
+};
+
+/* The recipe catalogue.
+ *
+ * 622 recipes that ship with the app, to browse and copy into the library --
+ * a port of Coach iPhone's RecipeCatalogView. The rules (search, servings,
+ * macros, what Add writes) are recipe-catalogue.js, which node tests; this is
+ * the panel.
+ *
+ * `recipes.json` is 1 MB, so it is fetched from this app's own origin the
+ * first time the catalogue is opened, never at page load, and the service
+ * worker keeps it from then on. Nothing here asks any other host for
+ * anything. Nothing is re-costed either: the catalogue's build already priced
+ * what converts to a weight and wrote down what it could not.
+ *
+ * Add goes straight into the library, as it does on the iPhone, through the
+ * same addLibraryRecipe the form's Save uses, with each ingredient line read
+ * from its raw text by parseIngredient. A recipe whose source states no yield
+ * carries whole-dish totals; the coach picks how many it serves (4 unless
+ * they change it) and the per-serving figures are divided out at that point.
+ */
+let catalogue = null;
+let catalogueLoading = null;
+let catalogueError = null;
+let catalogueOpen = null;   // the recipe the detail view shows
+let catalogueTimer = null;
+
+function loadCatalogue() {
+  if (catalogue) return Promise.resolve(catalogue);
+  if (!catalogueLoading) {
+    catalogueLoading = fetch('recipes.json')
+      .then((response) => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then((raw) => {
+        catalogue = CoachRecipeCatalogue.fromFile(raw);
+        catalogueError = null;
+        return catalogue;
+      })
+      .catch((e) => {
+        // Cleared so opening it again tries again, once there is signal.
+        catalogueError = e;
+        catalogueLoading = null;
+        throw e;
+      });
+  }
+  return catalogueLoading;
+}
+
+$('#rc-open').onclick = () => {
+  $('#rp-panel').classList.add('hidden');
+  catalogueOpen = null;
+  $('#rc-query').value = '';
+  showCatalogueList();
+  openPanel($('#rc-panel'), $('#rc-title'));
+  renderCatalogueList();
+  if (!catalogue) loadCatalogue().then(renderCatalogueList, renderCatalogueList);
+};
+
+$('#rc-done').onclick = () => closePanel($('#rc-panel'));
+
+/* Debounced with a two-character floor, the iPhone's rule: one character
+ * leaves the list as it was rather than flashing it empty. */
+$('#rc-query').addEventListener('input', () => {
+  clearTimeout(catalogueTimer);
+  const trimmed = $('#rc-query').value.trim();
+  if (trimmed.length === 1) return;
+  catalogueTimer = setTimeout(renderCatalogueList, trimmed ? 200 : 0);
+});
+
+function showCatalogueList() {
+  $('#rc-title').textContent = 'Recipe catalogue';
+  $('#rc-browse').classList.remove('hidden');
+  $('#rc-detail').classList.add('hidden');
+}
+
+function renderCatalogueList() {
+  const list = $('#rc-list');
+  const note = $('#rc-note');
+  list.innerHTML = '';
+  note.textContent = '';
+
+  if (!catalogue) {
+    if (catalogueError) {
+      note.textContent = 'The recipe catalogue could not be opened. It is part of the '
+        + 'app, so this is a connection that dropped before it was kept on this device '
+        + `(${catalogueError.message}).`;
+      const retry = cookEl('button', 'ghost wide', 'Try again');
+      retry.onclick = () => {
+        catalogueError = null;
+        renderCatalogueList();
+        loadCatalogue().then(renderCatalogueList, renderCatalogueList);
+      };
+      list.appendChild(retry);
+    } else {
+      note.textContent = 'Opening the catalogue…';
+    }
+    return;
+  }
+
+  const trimmed = $('#rc-query').value.trim();
+  const found = trimmed.length >= 2
+    ? CoachRecipeCatalogue.search(catalogue, trimmed)
+    : CoachRecipeCatalogue.browse(catalogue);
+  if (!found.length && trimmed.length >= 2) note.textContent = 'Nothing matches that.';
+
+  found.forEach((r) => {
+    const row = cookEl('button', 'chip wide');
+    row.appendChild(cookEl('span', null, r.name));
+    row.appendChild(document.createElement('br'));
+    row.appendChild(cookEl('span', 'muted small', CoachRecipeCatalogue.rowLine(r)));
+    row.onclick = () => openCatalogueRecipe(r);
+    list.appendChild(row);
+  });
+
+  // CC BY-SA requires the credit be given, so it sits on the screen that
+  // shows the data rather than in a settings page.
+  const credits = $('#rc-credits');
+  credits.innerHTML = '';
+  credits.appendChild(cookEl('strong', 'cardtitle', 'Credits'));
+  CoachRecipeCatalogue.credits(catalogue).forEach((line) => {
+    credits.appendChild(cookEl('p', 'muted small', line));
+  });
+}
+
+function openCatalogueRecipe(r) {
+  catalogueOpen = r;
+  $('#rc-title').textContent = 'Add recipe';
+  $('#rc-browse').classList.add('hidden');
+  $('#rc-detail').classList.remove('hidden');
+  renderCatalogueRecipe(CoachRecipeCatalogue.DEFAULT_SERVINGS);
+  $('#rc-panel').scrollIntoView({ block: 'start' });
+  $('#rc-title').focus({ preventScroll: true });
+}
+
+/* The detail, rebuilt whole except while the coach is typing a serving count,
+ * which only redraws the macro line so the field keeps its focus. */
+function renderCatalogueRecipe(picked) {
+  const r = catalogueOpen;
+  const C = CoachRecipeCatalogue;
+  const wrap = $('#rc-recipe');
+  wrap.innerHTML = '';
+
+  wrap.appendChild(cookEl('p', null, r.name));
+  if (r.summary) wrap.appendChild(cookEl('p', 'muted small', r.summary));
+
+  if (r.servings == null) {
+    // No yield in the source. With totals, the count divides every macro, so
+    // it is asked for here and never guessed; without macros it still scales
+    // the shopping list, so it is asked for all the same.
+    wrap.appendChild(cookEl('label', null, 'Servings')).setAttribute('for', 'rc-servings');
+    const input = cookEl('input');
+    input.type = 'number';
+    input.id = 'rc-servings';
+    input.inputMode = 'numeric';
+    input.min = String(C.MIN_SERVINGS);
+    input.max = String(C.MAX_SERVINGS);
+    input.step = '1';
+    input.value = String(picked);
+    input.oninput = () => renderCatalogueMacros(input.value);
+    input.onchange = () => { input.value = String(C.clampServings(input.value)); renderCatalogueMacros(input.value); };
+    wrap.appendChild(input);
+    wrap.appendChild(cookEl('p', 'muted small', C.needsServings(r)
+      ? 'This book states no yield, so the macros are for the whole dish. Set how many it serves before sending it to anyone.'
+      : 'This book states no yield. Set how many it serves before sending it to anyone.'));
+  } else {
+    wrap.appendChild(cookEl('p', null, servingsLabel(r.servings)));
+  }
+
+  wrap.appendChild(cookEl('label', null, `Ingredients (${r.ingredients.length})`));
+  r.ingredients.forEach((line) => {
+    const parsed = parseIngredient(line);
+    const row = cookEl('div', 'result');
+    row.appendChild(cookEl('span', null, ingredientDisplayText(parsed)));
+    if (parsed.qty == null) row.appendChild(cookEl('span', 'muted small', 'as written'));
+    wrap.appendChild(row);
+  });
+
+  if (r.steps.length) {
+    wrap.appendChild(cookEl('label', null, `Method (${r.steps.length})`));
+    const ol = cookEl('ol', 'steps small');
+    r.steps.forEach((step) => ol.appendChild(cookEl('li', null, step)));
+    wrap.appendChild(ol);
+  }
+
+  wrap.appendChild(cookEl('label', null, 'Macros'));
+  wrap.appendChild(cookEl('p', null)).id = 'rc-macros';
+  wrap.appendChild(cookEl('p', 'muted small')).id = 'rc-macros-basis';
+  if (r.nutritionNote) wrap.appendChild(cookEl('p', 'muted small', r.nutritionNote));
+
+  wrap.appendChild(cookEl('label', null, 'Source'));
+  wrap.appendChild(cookEl('p', 'muted small', r.attribution));
+  wrap.appendChild(cookEl('p', 'muted small', r.license));
+
+  renderCatalogueMacros(picked);
+}
+
+function renderCatalogueMacros(picked) {
+  const r = catalogueOpen;
+  const C = CoachRecipeCatalogue;
+  const count = C.servingsFor(r, picked);
+  const line = C.macroLine(C.nutrition(r, count));
+  const macros = $('#rc-macros');
+  const basis = $('#rc-macros-basis');
+  macros.textContent = line || 'None.';
+  macros.className = line ? '' : 'muted small';
+  basis.textContent = !line ? ''
+    : (C.needsServings(r) ? `Per serving at ${servingsLabel(count)}.` : 'Per serving, as published.');
+}
+
+/* parseIngredient's reading of a line, printed: "200 g Spaghetti", a count
+ * bare ("3 Egg yolks"), and the line as written when it read no quantity.
+ * LiftCore's RecipeIngredient.displayText. */
+function ingredientDisplayText(parsed) {
+  if (!parsed.item) return parsed.rawText;
+  if (parsed.qty != null && !isFinite(parsed.qty)) return parsed.rawText;
+  const amount = [parsed.qty != null ? trimNum(parsed.qty) : null,
+    parsed.unit && parsed.unit !== COUNT_UNIT ? parsed.unit : null]
+    .filter(Boolean).join(' ');
+  return amount ? `${amount} ${parsed.item}` : parsed.item;
+}
+
+$('#rc-back').onclick = () => {
+  catalogueOpen = null;
+  showCatalogueList();
+  $('#rc-title').focus({ preventScroll: true });
+};
+
+$('#rc-add').onclick = () => {
+  const r = catalogueOpen;
+  if (!r) return;
+  const input = $('#rc-servings');
+  const picked = input ? input.value : CoachRecipeCatalogue.DEFAULT_SERVINGS;
+  addLibraryRecipe(CoachRecipeCatalogue.libraryRecipe(r, picked, parseIngredient));
+  catalogueOpen = null;
+  closePanel($('#rc-panel'));
+  renderCook();
 };
