@@ -132,7 +132,7 @@ together.
 
 ## Bundled data
 
-Three datasets ship with the app and are read offline, so the lookups work in
+Four datasets ship with the app and are read offline, so the lookups work in
 a kitchen or a gym with no signal.
 
 | File | Rows | Size | Source |
@@ -140,6 +140,7 @@ a kitchen or a gym with no signal.
 | `coach/exercises.json` | 873 | 31 KB | [free-exercise-db](https://github.com/yuhonas/free-exercise-db), public domain |
 | `coach/foods.json` | 7,793 | 718 KB (166 KB gzipped) | USDA FoodData Central, SR Legacy — public domain |
 | `coach/road-food.json` | 13 chains, 22 snacks | 55 KB | `dugcanlift-kit/data/road-food.json`, curated by hand |
+| `coach/recipes.json` | 622 recipes | 1.0 MB (200 KB gzipped) | `dugcanlift-kit/data/recipes.json`, exported from the kit's `recipes.db` |
 
 `road-food.json` is a verbatim copy of `dugcanlift-kit/data/road-food.json`,
 the file LIFT bundles too — item ids are the contract road picks travel on, so
@@ -180,11 +181,29 @@ here; the generator is deliberately not duplicated in this repo. The row shape
 is documented at the top of `foods.js`. For the exercises, take the upstream
 database and keep only what `exercises.json` carries.
 
-Neither is a recipe database. There is no open one that carries nutrition:
-TheMealDB has recipes and no macros, Open Food Facts has macros and no recipes,
-and the ones that have both are commercial. So a pasted recipe is costed
-against USDA, and anything that cannot be weighed is reported as uncosted rather
-than guessed at.
+A pasted or typed recipe is costed against USDA, and anything that cannot be
+weighed is reported as uncosted rather than guessed at.
+
+`recipes.json` is the starter catalogue Cook → *From the catalogue* browses,
+the same 622 recipes Coach iPhone reads out of `recipes.db`, and a port of that
+screen (`recipe-catalogue.js`). It is a verbatim copy of
+`dugcanlift-kit/data/recipes.json`, which the kit's
+`tools/export_recipes_json.py` derives from the database, pinned by
+`recipes.sha256` exactly as `road-food.json` is: `recipe-catalogue.test.mjs`
+hashes the bytes. Copy both files together, bump `CACHE`, never edit either
+here and never write the checksum by hand. Like `foods.json` it is not in the
+install bundle: it is fetched from this origin the first time the catalogue is
+opened and cached from then on.
+
+Nothing in it is re-costed here; its build already priced what converts to a
+weight and says in `nutritionNote` what it could not. A recipe whose source
+states no yield has a null `servings` and whole-dish totals, and the coach picks
+how many it serves on Add. Every recipe carries its own `license` and
+`attribution` (CC BY-SA 4.0 or public domain), shown with it, and kept on the
+library copy as `sourceAuthor`. **Attribution does not travel on the plan
+wire** — PLAN-FORMAT has no field for it — so a CC BY-SA recipe sent to a
+client arrives uncredited. That is the iPhone's open question too, and it needs
+a wire-format decision across all the clients, not a patch here.
 
 ## License
 
