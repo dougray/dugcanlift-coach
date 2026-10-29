@@ -188,7 +188,7 @@ weighed is reported as uncosted rather than guessed at.
 the same 622 recipes Coach iPhone reads out of `recipes.db`, and a port of that
 screen (`recipe-catalogue.js`). It is a verbatim copy of
 `dugcanlift-kit/data/recipes.json`, which the kit's
-`tools/export_recipes_json.py` derives from the database, pinned by
+`Tools/export_recipes_json.py` derives from the database, pinned by
 `recipes.sha256` exactly as `road-food.json` is: `recipe-catalogue.test.mjs`
 hashes the bytes. Copy both files together, bump `CACHE`, never edit either
 here and never write the checksum by hand. Like `foods.json` it is not in the
