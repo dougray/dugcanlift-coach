@@ -2386,6 +2386,20 @@ function renderCookRecipes() {
 
 const RECIPE_DETAIL_INPUTS = { saturatedFatG: '#r-sat', sugarG: '#r-sugar', sodiumMg: '#r-sodium' };
 
+/* A stored macro shown in the form as the recipe cards show it (trimNum, two
+ * places), so a catalogue recipe divided by 6 reads 149.68 rather than
+ * 149.68333333333334. The stored figure is kept beside it, and Save writes it
+ * back unchanged unless the field was edited: reopening a recipe to rename it
+ * must not round the numbers it was saved with. LIFT web's rule, word for
+ * word (dugcanlift-site lift/app.js). */
+function showStoredMacro(selector, value) {
+  const field = $(selector);
+  const known = Number.isFinite(value);
+  field.value = known ? trimNum(value) : '';
+  field.dataset.stored = known ? String(value) : '';
+  field.dataset.shown = field.value;
+}
+
 function openRecipeForm(id) {
   editingRecipeId = id;
   const r = id ? recipeById(id) : null;
@@ -2402,13 +2416,13 @@ function openRecipeForm(id) {
   // Five zeros are placeholders on a recipe that holds only saturated fat,
   // sugar or sodium, and reopen blank rather than as a zero-calorie dish.
   const macros = CoachRecipeNutrition.hasMacros(n);
-  $('#r-cal').value = macros ? n.calories : '';
-  $('#r-p').value = macros ? n.proteinG : '';
-  $('#r-c').value = macros ? n.carbsG : '';
-  $('#r-f').value = macros ? n.fatG : '';
+  showStoredMacro('#r-cal', macros ? n.calories : null);
+  showStoredMacro('#r-p', macros ? n.proteinG : null);
+  showStoredMacro('#r-c', macros ? n.carbsG : null);
+  showStoredMacro('#r-f', macros ? n.fatG : null);
   // Fibre is often absent on a recipe that has the other four, so a blank
   // stays blank rather than showing a zero nobody measured.
-  $('#r-fib').value = n && n.fiberG ? n.fiberG : '';
+  showStoredMacro('#r-fib', n && n.fiberG ? n.fiberG : null);
   $('#r-delete').classList.toggle('hidden', !r);
 
   // A recipe already carrying macros counts as typed: reopening it to add one
@@ -2468,7 +2482,11 @@ $('#r-save').onclick = () => {
 
   const num = (sel) => {
     const raw = $(sel).value.trim();
-    return raw === '' ? null : parseFloat(raw);
+    if (raw === '') return null;
+    // Untouched since it was shown: the stored figure, not its rounding.
+    const field = $(sel);
+    if (field.dataset.stored && raw === field.dataset.shown) return parseFloat(field.dataset.stored);
+    return parseFloat(raw);
   };
   const typed = [num('#r-cal'), num('#r-p'), num('#r-c'), num('#r-f'), num('#r-fib')];
   // Null unless something was typed. An untouched form must not write zeros.
