@@ -252,3 +252,69 @@ test('nothing in the catalogue module reaches for the network', () => {
     assert.ok(!src.includes(call), `recipe-catalogue.js calls ${call}`);
   });
 });
+
+/* ---------------- the recipe form, on a copied recipe ---------------- */
+
+test('the recipe form shows a stored macro as the cards do, and keeps the raw figure', () => {
+  // showStoredMacro lifted out of app.js as it is now, against a stand-in field.
+  const src = readFileSync('coach/app.js', 'utf8');
+  const i = src.indexOf('function showStoredMacro(selector, value) {');
+  const j = src.indexOf('function openRecipeForm(id) {', i);
+  assert.ok(i >= 0 && j > i, 'showStoredMacro sits just above openRecipeForm');
+  const field = { value: '', dataset: {} };
+  const trimNum = (v) => (Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100));
+  const show = new Function('$', 'trimNum', src.slice(i, j) + '\nreturn showStoredMacro;')(() => field, trimNum);
+  const stored = 898.1 / 6;
+  show('#r-cal', stored);
+  assert.equal(field.value, '149.68', 'two places, as the recipe card prints it');
+  assert.equal(parseFloat(field.dataset.stored), stored, 'the quotient, unrounded, beside it');
+  assert.equal(field.dataset.shown, '149.68');
+  show('#r-cal', 690);
+  assert.deepEqual([field.value, field.dataset.stored], ['690', '690']);
+  show('#r-cal', null);
+  assert.deepEqual([field.value, field.dataset.stored, field.dataset.shown], ['', '', '']);
+});
+
+test("Save writes the stored figure back for a field left as shown, and the typed one otherwise", () => {
+  // The num() reader inside the form's Save handler, lifted out as it is now.
+  const src = readFileSync('coach/app.js', 'utf8');
+  const i = src.indexOf('  const num = (sel) => {');
+  const j = src.indexOf('  const typed = [num(', i);
+  assert.ok(i >= 0 && j > i);
+  const fields = {};
+  const num = new Function('$', src.slice(i, j) + '\nreturn num;')((sel) => fields[sel]);
+  const stored = 898.1 / 6;
+  fields['#r-cal'] = { value: '149.68', dataset: { stored: String(stored), shown: '149.68' } };
+  fields['#r-p'] = { value: '9', dataset: { stored: String(40 / 6), shown: '6.67' } };
+  fields['#r-c'] = { value: '', dataset: { stored: '', shown: '' } };
+  fields['#r-f'] = { value: '12.5', dataset: { stored: '', shown: '' } };
+  assert.equal(num('#r-cal'), stored, 'untouched: the raw quotient, not 149.68');
+  assert.equal(num('#r-p'), 9, 'edited: what was typed');
+  assert.equal(num('#r-c'), null, 'blank stays blank');
+  assert.equal(num('#r-f'), 12.5, 'a field with no stored figure reads as typed');
+});
+
+// Coach iPhone keeps `nutritionIsEstimated` on the recipe and its editor's
+// save never touches it (RecipeEditorView.save, MacroFields.entered): editing
+// a macro on an estimated recipe leaves it estimated. Here the flag is
+// nutritionPerServing.estimated (BACKUP-FORMAT), and mergeNutrition carries
+// every key the form does not show, so the form keeps it the same way.
+test('saving a copied recipe through the form keeps its estimated flag, as the iPhone does', () => {
+  const s = { window: {} };
+  new Function('window', readFileSync('coach/recipe-nutrition.js', 'utf8')).call(s, s.window);
+  const N = s.window.CoachRecipeNutrition;
+  const pie = byId('gutenberg-26558:beef-pot-pie');
+  const existing = C.libraryRecipe(pie, 6, parseIngredient, 0).nutritionPerServing;
+  assert.equal(existing.estimated, true);
+
+  const untouched = N.mergeNutrition([existing.calories, existing.proteinG, existing.carbsG, existing.fatG, null],
+    existing, { saturatedFatG: null, sugarG: null, sodiumMg: null });
+  assert.equal(untouched.estimated, true);
+  assert.equal(untouched.calories, pie.caloriesTotal / 6, 'a rename rounds nothing');
+
+  const edited = N.mergeNutrition([existing.calories, 9, existing.carbsG, existing.fatG, null],
+    existing, { saturatedFatG: null, sugarG: null, sodiumMg: null });
+  assert.equal(edited.estimated, true, 'editing a macro does not clear it');
+  assert.equal(edited.proteinG, 9);
+  assert.equal(edited.calories, pie.caloriesTotal / 6);
+});
