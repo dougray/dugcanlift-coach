@@ -157,3 +157,34 @@ test("app.js's log reader refuses a recipe link, and this decoder refuses a log 
   assert.deepEqual(Object.keys(extractFragment(logLink)), ['version', 'codec', 'data']);
   assert.equal(extractFragment(logLink).codec, 'z');
 });
+
+/* ---------------- the shared words ---------------- */
+
+// Every build says the same thing about the bookmarklet, with its own name in
+// it. app.js and index.html need a DOM to run, so this reads them as text,
+// with index.html's line wrapping folded away. Change these in every build or
+// in none.
+test('the bookmarklet panel, the error lines and the form note use the shared words', () => {
+  const page = readFileSync('coach/index.html', 'utf8').replace(/\s+/g, ' ');
+  const script = appSource.replace(/'\s*\+\s*'/g, '');
+  [
+    'Send recipes from your browser',
+    'Save this as a bookmark once. On any recipe page, tap the bookmark and the recipe opens here for you to check. Coach never visits the page.',
+    'Send to Coach',
+    'On a computer, drag it to your bookmarks bar.',
+    '<li>Tap Copy.</li>',
+    '<li>Bookmark any page.</li>',
+    '<li>Edit the bookmark. Name it Send to Coach, and paste over its address.</li>',
+    '<li>On a recipe page, type Send to Coach in the address bar and tap the bookmark.</li>',
+    'Coach on iPhone can share a recipe from Safari instead.',
+    "A recipe website's address will not work here. Use Send recipes from your browser for a website instead.",
+  ].forEach((s) => assert.ok(page.includes(s), `index.html: ${s}`));
+  [
+    'That recipe link could not be read, so nothing was added. Open the recipe page and tap Send to Coach again.',
+    'That page has no recipe Coach can read. Copy the recipe text and use Paste a recipe instead.',
+    '. Check it, then Save.',
+    'The page did not say how many this serves; set it before saving.',
+    'Copying was blocked. Select all of the text below and copy it.',
+    'Drag it to your bookmarks bar, or tap Copy and save it as a bookmark. It works on a recipe page, not here.',
+  ].forEach((s) => assert.ok(script.includes(s), `app.js: ${s}`));
+});
