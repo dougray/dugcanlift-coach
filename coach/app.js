@@ -4058,7 +4058,7 @@ function renderCatalogueRecipe(picked) {
   wrap.appendChild(cookEl('p', null, r.name));
   if (r.summary) wrap.appendChild(cookEl('p', 'muted small', r.summary));
 
-  if (r.servings == null) {
+  if (C.showsServingsStepper(r)) {
     // No yield in the source. With totals, the count divides every macro, so
     // it is asked for here and never guessed; without macros it still scales
     // the shopping list, so it is asked for all the same.

@@ -4,7 +4,7 @@
  * A port of Coach iPhone's RecipeCatalogView and LiftReference's
  * CatalogRecipe / CatalogEntry / ReferenceDatabase.searchRecipes. The iPhones
  * read the 622 recipes out of recipes.db; this build cannot open SQLite, so it
- * reads `recipes.json`, which the kit's tools/export_recipes_json.py derives
+ * reads `recipes.json`, which the kit's Tools/export_recipes_json.py derives
  * from that same database. The file is a verbatim copy, pinned by
  * `recipes.sha256` (recipe-catalogue.test.mjs) -- never edited here.
  *
@@ -35,7 +35,6 @@
 (function (global) {
   'use strict';
 
-  var BROWSE_LIMIT = 60;
   var SEARCH_LIMIT = 40;
   var DEFAULT_SERVINGS = 4;
   var MIN_SERVINGS = 1;
@@ -65,6 +64,14 @@
    *  no yield. The coach supplies a serving count before adding it. */
   function needsServings(r) {
     return r.servings == null && num(r.caloriesTotal) != null;
+  }
+
+  /** Whether the detail asks how many it serves: whenever the source stated
+   *  no yield, with macros or without. With whole-dish totals the count
+   *  divides every macro; without, it still scales the shopping list. Never
+   *  guessed, and the same rule on every build. */
+  function showsServingsStepper(r) {
+    return r.servings == null;
   }
 
   /** The serving count a stepper may hold: whole, 1 to 48, 4 when blank or
@@ -113,8 +120,14 @@
     };
   }
 
-  // Swift's Int(Double) truncates toward zero; the iPhone prints these with it.
-  var whole = function (v) { return String(Math.trunc(v)); };
+  /* A whole number on screen is rounded half away from zero, never truncated:
+   * Beef Pot Pie's 898.1 kcal over four servings is 224.525 and reads 225.
+   * The same rule on every build. Display only -- a stored value is never
+   * rounded (see libraryRecipe). */
+  function roundHalfAway(v) {
+    return v < 0 ? -Math.round(-v) : Math.round(v);
+  }
+  var whole = function (v) { return String(roundHalfAway(v)); };
 
   /** The list row's macro clause. Said in the list, not only the detail, so a
    *  browsing eye never reads a whole-pot figure as a portion. */
@@ -144,10 +157,11 @@
     return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   }
 
-  /** The opening page, before anyone has typed: by name, so the world recipes
-   *  and the heritage books interleave rather than one trailing the other. */
-  function browse(recipes, limit) {
-    return recipes.slice().sort(byName).slice(0, limit == null ? BROWSE_LIMIT : limit);
+  /** The opening page, before anyone has typed: every recipe, by name, so the
+   *  world recipes and the heritage books interleave rather than one trailing
+   *  the other. All 622, the same list on every build. */
+  function browse(recipes) {
+    return recipes.slice().sort(byName);
   }
 
   /* FTS5's unicode61 tokenizer folds case and strips diacritics, and splits on
@@ -238,13 +252,11 @@
   function libraryRecipe(r, picked, parse, now) {
     var servings = servingsFor(r, picked);
     var facts = nutrition(r, servings);
-    if (facts) {
-      // A whole dish divided by six is 149.68333... kcal. Stored to a tenth,
-      // so the editor reopens a number a person would write and the plan link
-      // carries no sixteen-digit tails; a published figure is already whole.
-      Object.keys(facts).forEach(function (k) { facts[k] = Math.round(facts[k] * 10) / 10; });
-      facts.estimated = !!r.nutritionIsEstimated;
-    }
+    // Stored as the raw quotient, never rounded: a whole dish over six is
+    // 149.68333... kcal, and that is what the iPhone, LIFT web and both
+    // Androids store, back up and send. Rounding here would make the same
+    // recipe a different number on this build alone. Screens round.
+    if (facts) facts.estimated = !!r.nutritionIsEstimated;
     var body = {
       name: r.name,
       servings: servings,
@@ -264,13 +276,14 @@
   }
 
   global.CoachRecipeCatalogue = {
-    BROWSE_LIMIT: BROWSE_LIMIT,
     SEARCH_LIMIT: SEARCH_LIMIT,
     DEFAULT_SERVINGS: DEFAULT_SERVINGS,
     MIN_SERVINGS: MIN_SERVINGS,
     MAX_SERVINGS: MAX_SERVINGS,
     fromFile: fromFile,
     needsServings: needsServings,
+    showsServingsStepper: showsServingsStepper,
+    roundHalfAway: roundHalfAway,
     clampServings: clampServings,
     servingsFor: servingsFor,
     nutrition: nutrition,

@@ -30,7 +30,7 @@ test("the bundled recipes.json is the kit's file, byte for byte", () => {
     'coach/recipes.json does not match coach/recipes.sha256.\n' +
     'Copy dugcanlift-kit/data/recipes.json AND data/recipes.sha256 over together,\n' +
     'and bump CACHE in coach/sw.js. Never edit either file here, and never re-write the\n' +
-    'checksum by hand: the kit writes it (tools/export_recipes_json.py).');
+    'checksum by hand: the kit writes it (Tools/export_recipes_json.py).');
 });
 
 test('the catalogue reads as 622 recipes, each with its own licence and credit', () => {
@@ -83,6 +83,25 @@ test('no stated yield divides the whole-dish totals by the count picked, never g
   assert.equal(C.nutrition(pie, 0).calories, pie.caloriesTotal, 'a zero count divides by one, never by zero');
 });
 
+test('whole numbers on screen round half away from zero, never truncate', () => {
+  const pie = byId('gutenberg-26558:beef-pot-pie');
+  assert.equal(pie.caloriesTotal / 4, 224.525);
+  assert.match(C.macroLine(C.nutrition(pie, 4)), /^225 kcal · /, 'Beef Pot Pie at 4 servings reads 225 kcal');
+  assert.equal(C.roundHalfAway(2.5), 3);
+  assert.equal(C.roundHalfAway(-2.5), -3, 'away from zero, where Math.round alone gives -2');
+  assert.equal(C.roundHalfAway(2.4999), 2);
+  assert.equal(C.macroSummary({ caloriesPerServing: 689.5, ingredients: [] }), '690 kcal per serving');
+});
+
+test('the servings stepper shows for every recipe whose servings is null, and only those', () => {
+  const nulls = RECIPES.filter((r) => r.servings == null);
+  assert.equal(nulls.length, 121);
+  nulls.forEach((r) => assert.equal(C.showsServingsStepper(r), true, r.id));
+  assert.ok(nulls.some((r) => C.nutrition(r, 4) === null), 'including the ones with no macros at all');
+  RECIPES.filter((r) => r.servings != null)
+    .forEach((r) => assert.equal(C.showsServingsStepper(r), false, r.id));
+});
+
 test('the stepper holds whole servings from 1 to 48', () => {
   assert.equal(C.clampServings('6'), 6);
   assert.equal(C.clampServings(0), 1);
@@ -106,15 +125,16 @@ test("the list's lines are the iPhone's", () => {
   assert.equal(C.rowLine(byId('unitools:spaghetti-carbonara')), '690 kcal per serving · 7 ingredients');
   assert.equal(C.macroSummary(byId('gutenberg-26558:beef-pot-pie')), 'Macros for the whole dish');
   assert.equal(C.macroLine({ calories: 224.9, proteinG: 10.99, carbsG: 0.4, fatG: 3 }),
-    '224 kcal · P 10 · C 0 · F 3', 'truncated, as Swift Int() prints them');
+    '225 kcal · P 11 · C 0 · F 3', 'rounded, never truncated');
   assert.equal(C.macroLine(null), null);
 });
 
 /* ---------------- browse and search ---------------- */
 
-test('browsing is the first 60 by name, in SQLite binary order', () => {
+test('with no search typed, all 622 recipes are listed by name, in SQLite binary order', () => {
   const page = C.browse(RECIPES);
-  assert.equal(page.length, 60);
+  assert.equal(page.length, 622);
+  assert.equal(new Set(page.map((r) => r.id)).size, 622);
   for (let i = 1; i < page.length; i++) assert.ok(page[i - 1].name <= page[i].name);
   assert.equal(page[0].name, [...RECIPES].map((r) => r.name).sort()[0]);
 });
@@ -210,10 +230,12 @@ test('Add keeps the credit and the coverage note on the copy', () => {
   assert.equal(body.sourceUrl, pie.sourceURL);
   assert.equal(body.sourceTranscript, [pie.attribution, pie.license, pie.nutritionNote].join('\n'));
   assert.equal(body.servings, 6);
-  assert.equal(body.nutritionPerServing.calories, Math.round(pie.caloriesTotal / 6 * 10) / 10,
-    'per serving at the count picked, to a tenth');
-  assert.equal(body.nutritionPerServing.calories, 149.7);
-  assert.equal(body.nutritionPerServing.proteinG, Math.round(pie.proteinTotal / 6 * 10) / 10);
+  // The raw quotient, unrounded, as every other build stores it.
+  assert.equal(body.nutritionPerServing.calories, pie.caloriesTotal / 6);
+  assert.equal(body.nutritionPerServing.proteinG, pie.proteinTotal / 6);
+  assert.equal(body.nutritionPerServing.carbsG, pie.carbsTotal / 6);
+  assert.equal(body.nutritionPerServing.fatG, pie.fatTotal / 6);
+  assert.notEqual(body.nutritionPerServing.calories, 149.7, 'not stored to a tenth');
   assert.equal(body.nutritionPerServing.estimated, pie.nutritionIsEstimated);
 });
 
