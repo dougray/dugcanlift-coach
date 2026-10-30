@@ -375,6 +375,7 @@
     <div class="card" id="tplan-send-card">
       <button class="wide" id="tplan-copy">Copy plan link</button>
       <button class="ghost wide" id="tplan-mail">Email it</button>
+      <button class="ghost wide hidden" id="tplan-print">Print or save as PDF</button>
       <p class="muted" id="tplan-size"></p>
     </div>
   </div>
@@ -451,6 +452,10 @@
 
 </main>
 
+<!-- The week on paper: filled and shown only while Print or save as PDF is
+     printing (printout.js, style.css "@media print"). -->
+<div id="printout"></div>
+
 <script src="parser.js"></script>
 <script src="recipe-import.js"></script>
 <script src="recipe-link.js"></script>
@@ -465,6 +470,7 @@
 <script src="client-removal.js"></script>
 <script src="road-picks.js"></script>
 <script src="plan-log.js"></script>
+<script src="printout.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

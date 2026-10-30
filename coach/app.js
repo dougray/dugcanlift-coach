@@ -3571,6 +3571,12 @@ function renderTrainPlan() {
     : 'Build a workout first — the week is scheduled from them.';
   $('#tplan-send-card').classList.toggle('hidden', !workouts.length);
 
+  // Paper, for the client who wants it printed: shown when this client has
+  // something booked in the week on screen, a removed workout included.
+  const week = cookWeek();
+  $('#tplan-print').classList.toggle('hidden', !sessions.some(
+    (k) => k.clientId === trainClientId && week.includes(k.date)));
+
   const wrap = $('#tplan-days');
   wrap.innerHTML = '';
   if (!workouts.length) return;
@@ -3738,6 +3744,38 @@ $('#tplan-mail').onclick = async () => {
   if (!link) { alert('Nothing planned for this client yet.'); return; }
   mailPlan(trainClientId, link);
 };
+
+/* The week on screen, on paper: printout.js's lines in a container only print
+ * shows, then the browser's own print dialog, which offers every printer and
+ * Save as PDF. The document title is the file name that dialog suggests.
+ *
+ * Not a send: nothing is recorded, because a printout is not a plan the
+ * client's app received. */
+function printWeek(clientId) {
+  const client = clients.find((c) => c.id === clientId);
+  const week = cookWeek();
+  const days = CoachPrintout.days(week, clientId, sessions, workouts, exerciseSummary);
+  const clientName = client ? client.name : '';
+  const lines = CoachPrintout.lines(clientName, week[0], settings.name, days,
+    (key) => CoachPrintout.dayTitle(key));
+
+  const page = $('#printout');
+  page.innerHTML = '';
+  lines.forEach((line) => page.appendChild(cookEl('p', 'print-' + line.style, line.text)));
+
+  const title = document.title;
+  const done = () => {
+    document.body.classList.remove('printing');
+    document.title = title;
+    page.innerHTML = '';
+  };
+  window.addEventListener('afterprint', done, { once: true });
+  document.title = CoachPrintout.fileName(clientName, week[0]).replace(/\.pdf$/, '');
+  document.body.classList.add('printing');
+  window.print();
+}
+
+$('#tplan-print').onclick = () => printWeek(trainClientId);
 
 /* ---------------- ingredient lookup ----------------
  *
