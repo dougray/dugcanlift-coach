@@ -135,6 +135,16 @@ clients, and all of them must emit identical bytes. Change it in one and you
 change it in four — bump the version, update the spec, and ship the clients
 together.
 
+The ingredient parser (`coach/parser.js`) is the other one. It exists four
+times -- here, LIFT web's `app.js`, and the iOS and Android kits -- and all four
+must read the same line the same way. `coach/fixtures/ingredient-lines.json` is
+`dugcanlift-kit/data/ingredient-lines.json`, the case table every one of them
+is tested against, written by hand from the rules in that repo's
+`data/README.md`; `parser.test.mjs` runs it and checks the copy against
+`ingredient-lines.sha256`. Change a rule there first, then all four parsers, and
+copy both files over together. Never edit them here, and never regenerate them
+from this parser.
+
 ## Bundled data
 
 Five datasets ship with the app and are read offline, so the lookups work in
