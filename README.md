@@ -67,6 +67,14 @@ catalogue, pasted as text, or sent from a recipe website with the **Send to
 Coach** bookmarklet (Cook → *Send recipes from your browser*). See "Recipe
 links" below.
 
+**Train** — workout templates, and the client's week they are booked into.
+*Print or save as PDF* under the send buttons prints that week for a client
+who wants it on paper: the booked days, each workout, and each exercise read
+as its card reads it, through the browser's own print dialog, which offers
+Save as PDF. The lines are Coach iPhone's and Coach Android's, in their order
+(`printout.js`); change them in all three or in none. Printing records
+nothing — a printout is not a plan the client's app received.
+
 ## Setting a client up
 
 Once, per client. Connect → fill in your name and the address logs should come
