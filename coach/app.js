@@ -1402,10 +1402,10 @@ function renderSessions(client, unit) {
       block.appendChild(el('h3', null, 'Food'));
       const t = day.foodTotals;
       block.appendChild(el('div', 'setline',
-        `${num(t.calories)} kcal · ${t.proteinG}p / ${t.fatG}f / ${t.carbsG}c / ${t.fiberG} fibre`));
+        `${num(t.calories)} kcal · ${t.proteinG}p / ${t.fatG}f / ${t.carbsG}c / ${t.fiberG} fiber`));
       nutrientLines(block);
       block.appendChild(el('p', 'muted',
-        'Daily totals only — ask them to switch on itemised food in LIFT if you want the detail.'));
+        'Daily totals only — ask them to switch on itemized food in LIFT if you want the detail.'));
       body.appendChild(block);
     }
 
@@ -4005,7 +4005,7 @@ $('#rp-go').onclick = () => {
 
   const advice = {
     labelled: 'Split on the headings in the text — check it read them right.',
-    inferred: 'The text labelled one section and this worked out the rest, so check the division.',
+    inferred: 'The text labeled one section and this worked out the rest, so check the division.',
     unsorted: 'The text had no headings, so everything landed in Ingredients — cut any method steps out and paste them into Method.',
   }[parsed.split];
 
@@ -4085,7 +4085,7 @@ $('#rc-query').addEventListener('input', () => {
 });
 
 function showCatalogueList() {
-  $('#rc-title').textContent = 'Recipe catalogue';
+  $('#rc-title').textContent = 'Recipe catalog';
   $('#rc-browse').classList.remove('hidden');
   $('#rc-detail').classList.add('hidden');
 }
@@ -4098,7 +4098,7 @@ function renderCatalogueList() {
 
   if (!catalogue) {
     if (catalogueError) {
-      note.textContent = 'The recipe catalogue could not be opened. It is part of the '
+      note.textContent = 'The recipe catalog could not be opened. It is part of the '
         + 'app, so this is a connection that dropped before it was kept on this device '
         + `(${catalogueError.message}).`;
       const retry = cookEl('button', 'ghost wide', 'Try again');
@@ -4109,7 +4109,7 @@ function renderCatalogueList() {
       };
       list.appendChild(retry);
     } else {
-      note.textContent = 'Opening the catalogue…';
+      note.textContent = 'Opening the catalog…';
     }
     return;
   }
