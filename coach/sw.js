@@ -4,7 +4,7 @@
  * shell file changes, or browsers will keep serving the old one.
  */
 
-const CACHE = 'coach-v42';
+const CACHE = 'coach-v43';
 
 const SHELL = [
   '/coach/',
