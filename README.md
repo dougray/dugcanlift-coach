@@ -188,9 +188,22 @@ failure somewhere further away.
 A chain in that file carries two dates: `checkedOn`, the day a person read its
 chart, and the optional `publishedOn`, the date the document states about
 itself (`"2021-03-29"`, or `"2022-11"` where the chart names only a month).
-Coach reads neither — it shows no staleness and never has — but LIFT warns from
-`publishedOn` when a chain has one, so a copy that lost the field here would be
-a copy that had drifted. `road-picks.test.mjs` pins it.
+Cook → Road says both on the chain's card, as Coach iPhone does: "Published Nov
+2022 · checked Sep 20, 2026", in the reader's locale, a month-only date printed
+only to the month, and a value that is neither shape left out with its clause
+(never "Invalid Date"). A chain with no `publishedOn` reads "Checked …" alone.
+Coach does not warn — LIFT warns from `publishedOn`, and no Coach build says
+anything about staleness — so the line gains a clause in all three Coach builds
+or in none. A copy that lost the field here would be a copy that had drifted;
+`road-picks.test.mjs` pins the field and `CoachRoadPicks.dateLine`.
+
+The client page's charts put a few dates under each line ("Oct 4 · Oct 13 ·
+Oct 22 · Oct 31"), chosen by `chart-dates.js`: each label under its own point,
+from the local day key, in the reader's locale, with the year only when the
+chart crosses one, and fewer labels rather than overlapping ones on a narrow
+screen. `chart-dates.test.mjs` pins it. Bodyweight and estimated 1RM are fitted
+to their values rather than drawn from zero; volume and calories start at zero,
+because half as much has to look like half as much.
 
 `foods.json` is deliberately **not** in the service worker's install bundle;
 718 KB is not something to spend before someone has asked for it. It is cached
