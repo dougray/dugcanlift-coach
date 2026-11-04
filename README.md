@@ -7,7 +7,7 @@ morning and tell at a glance who has gone quiet.
 There is no server, no account, and no sign-up — for you or for them.
 
 **Live at [dugcanlift.com/coach](https://www.dugcanlift.com/coach/).** Free, and
-licensed [AGPL-3.0](LICENSE).
+licensed [Apache 2.0](LICENSE).
 
 ## How a log gets here
 
@@ -281,9 +281,8 @@ service worker's install bundle.
 
 ## License
 
-[GNU AGPL-3.0](LICENSE). The network clause matters for a project like this: if
-you run a modified copy of Coach as a service, you have to offer that copy's
-source to its users.
+[Apache License 2.0](LICENSE), with an explicit patent grant. Recipes keep their
+own license and attribution (see [NOTICE](NOTICE)).
 
 Same license as the LIFT apps
 ([iOS](https://github.com/dougray/dugcanlift-lift-ios),

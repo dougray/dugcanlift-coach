@@ -1,2 +1,9 @@
 .DS_Store
 _site/
+
+# Secrets: never commit env files (examples and templates stay tracked)
+.env
+.env.*
+*.env
+!.env.example
+!.env.template
