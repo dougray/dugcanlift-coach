@@ -279,6 +279,27 @@ bytes. Copy both together, bump `CACHE`, and never edit either here. Cook →
 bookmarks bar or copy into a phone bookmark. It is small enough to sit in the
 service worker's install bundle.
 
+## Street maps
+
+A client's last route is drawn over streets once the coach has downloaded the
+area around it: **Download streets for this route**, under the route, or
+Connect → *Maps* to update or delete what is saved. The module is
+dugcanlift-kit's `map/` folder, shared with LIFT web, copied byte for byte into
+`coach/map/` (`map.js`, MapLibre GL JS 5.24.0, the two styles, the Noto Sans
+glyph ranges and their licenses). `coach/map/map-files.sha256` is the kit's
+manifest, and `map.test.mjs` hashes every file against it. When the kit
+changes, copy its `map/` folder over with the new manifest and bump `CACHE`;
+never edit a file in `coach/map/`, and never rewrite a manifest line by hand.
+
+The one request to a map server is a download the coach starts, from `map.js`
+to OpenFreeMap, and the sheet says so first. Looking at a map asks for nothing
+but this app's own files: tiles come out of Cache Storage (`coach-map-tiles`),
+which the service worker keeps across updates. The 1 MB MapLibre script is not
+in the page or the install bundle; `app.js` loads it the first time a downloaded
+area could be shown, and the service worker keeps it. Only `map.js` may name the
+tile server, and only the pinned `maplibre-gl.js` (by hash) may contain `fetch(`
+or `XMLHttpRequest`; `map.test.mjs` checks both.
+
 ## License
 
 [Apache License 2.0](LICENSE), with an explicit patent grant. Recipes keep their

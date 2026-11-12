@@ -6,3 +6,13 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 Recipes in the catalogue carry their own license (CC BY-SA 4.0 or public
 domain) and attribution, shown with each recipe; the Apache License does not
 cover them. See the LiftKit NOTICE for the sources.
+
+Street maps (coach/map/) are drawn from data you download, and carry their own
+licenses; the Apache License does not cover them:
+
+- Street data: (c) OpenStreetMap contributors, Open Database License (ODbL
+  1.0), served by OpenFreeMap. https://www.openstreetmap.org/copyright
+- MapLibre GL JS 5.24.0 (coach/map/maplibre-gl.js): (c) 2023 MapLibre
+  contributors, BSD 3-Clause. The license text is coach/map/LICENSE-maplibre.txt.
+- Street-name glyphs (coach/map/fonts/): Noto Sans, (c) 2022 The Noto Project
+  Authors, SIL Open Font License 1.1. The license text is coach/map/fonts/OFL.txt.

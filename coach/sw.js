@@ -4,7 +4,7 @@
  * shell file changes, or browsers will keep serving the old one.
  */
 
-const CACHE = 'coach-v44';
+const CACHE = 'coach-v45';
 
 const SHELL = [
   '/coach/',
@@ -28,6 +28,12 @@ const SHELL = [
   '/coach/chart-dates.js',
   '/coach/plan-log.js',
   '/coach/printout.js',
+  // The street map's own script and styles are small, so they install with the
+  // shell. MapLibre itself (1 MB, 276 KB on the wire) is not here: it is
+  // fetched the first time a map is wanted and kept, like foods.json.
+  '/coach/map/map.js',
+  '/coach/map/style-light.json',
+  '/coach/map/style-dark.json',
   '/coach/app.js',
   '/coach/foods.js',
   '/coach/exercises.json',
@@ -48,11 +54,18 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Every old shell cache goes on an update. The street map's tiles do not:
+// `coach-map-tiles` holds what a coach downloaded on purpose, and losing it to
+// a shell bump would mean downloading again.
+function cachesToDelete(keys, current) {
+  return keys.filter((k) => k !== current && !k.startsWith('coach-map-'));
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+        cachesToDelete(keys, CACHE).map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
@@ -85,6 +98,23 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }))
+    );
+    return;
+  }
+
+  // The map's files (MapLibre, the CSS, the glyph ranges) are cache-first and
+  // kept the first time they are used. A miss with no connection is a 404 for
+  // that one file, never the app's page: MapLibre would read the page as a
+  // style or a font and the map would fail in a way that looks like a bug.
+  if (url.pathname.startsWith('/coach/map/')) {
+    event.respondWith(
+      caches.match(event.request).then((hit) => hit || fetch(event.request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      }).catch(() => new Response('', { status: 404 })))
     );
     return;
   }
