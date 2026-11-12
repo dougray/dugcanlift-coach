@@ -4,7 +4,15 @@
  * shell file changes, or browsers will keep serving the old one.
  */
 
-const CACHE = 'coach-v46';
+const CACHE = 'coach-v47';
+
+// The street map's engine (MapLibre, 1 MB) and its glyph ranges are not in
+// the install bundle: they are fetched the first time a map is shown and kept
+// here, in a cache of their own so a shell bump does not drop them. The name
+// carries the first 8 hex digits of the engine's sha256 (map/map-files.sha256),
+// so a new engine starts a fresh cache and the old one is pruned. Change this
+// with the engine, and map.test.mjs says when you forgot.
+const MAP_ASSETS = 'coach-map-assets-45a9b07a';
 
 const SHELL = [
   '/coach/',
@@ -28,13 +36,16 @@ const SHELL = [
   '/coach/chart-dates.js',
   '/coach/plan-log.js',
   '/coach/printout.js',
-  // The street map's own script and styles are small, so they install with the
-  // shell. MapLibre itself (1 MB, 276 KB on the wire) is not here: it is
-  // fetched the first time a map is wanted and kept, like foods.json.
+  // The street map's own script, css, styles and license text are small, so
+  // they install with the shell. MapLibre itself (1 MB, 276 KB on the wire) and
+  // the glyph ranges are not here: they are fetched the first time a map is
+  // wanted and kept in MAP_ASSETS.
   '/coach/street-offer.js',
   '/coach/map/map.js',
+  '/coach/map/maplibre-gl.css',
   '/coach/map/style-light.json',
   '/coach/map/style-dark.json',
+  '/coach/map/LICENSE-maplibre.txt',
   '/coach/app.js',
   '/coach/foods.js',
   '/coach/exercises.json',
@@ -55,11 +66,18 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Every old shell cache goes on an update. The street map's tiles do not:
-// `coach-map-tiles` holds what a coach downloaded on purpose, and losing it to
-// a shell bump would mean downloading again.
+// Cache Storage is per origin, and this origin also serves LIFT at /lift/, so
+// an update deletes only Coach's own old shell caches. `coach-map-tiles` holds
+// what a coach downloaded on purpose and is never deleted here; the map assets
+// cache is kept while it is the current engine's and pruned when it is not.
+// Nothing that is not named `coach-` is ever touched, `lift-*` least of all.
 function cachesToDelete(keys, current) {
-  return keys.filter((k) => k !== current && !k.startsWith('coach-map-'));
+  return keys.filter((k) => {
+    if (!k.startsWith('coach-') || k === current) return false;
+    if (k === 'coach-map-tiles') return false;
+    if (k.startsWith('coach-map-assets-')) return k !== MAP_ASSETS;
+    return !k.startsWith('coach-map-');
+  });
 }
 
 self.addEventListener('activate', (event) => {
@@ -103,19 +121,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // The map's files (MapLibre, the CSS, the glyph ranges) are cache-first and
-  // kept the first time they are used. A miss with no connection is a 404 for
-  // that one file, never the app's page: MapLibre would read the page as a
-  // style or a font and the map would fail in a way that looks like a bug.
+  // The map's files. The ones in SHELL come from the shell cache. The rest
+  // (MapLibre, the glyph ranges) are cache-first in MAP_ASSETS and kept the
+  // first time they are used. A miss with no connection is a 404 for that one
+  // file, never the app's page: MapLibre would read the page as a style or a
+  // font and the map would fail in a way that looks like a bug.
   if (url.pathname.startsWith('/coach/map/')) {
+    const missing = () => new Response('', { status: 404 });
+    if (SHELL.includes(url.pathname)) {
+      event.respondWith(
+        caches.match(event.request).then((hit) => hit || fetch(event.request).catch(missing))
+      );
+      return;
+    }
     event.respondWith(
-      caches.match(event.request).then((hit) => hit || fetch(event.request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      }).catch(() => new Response('', { status: 404 })))
+      caches.open(MAP_ASSETS).then((cache) => cache.match(event.request).then((hit) => {
+        if (hit) return hit;
+        return fetch(event.request).then((response) => {
+          if (response.ok) cache.put(event.request, response.clone());
+          return response;
+        }).catch(missing);
+      })).catch(missing)
     );
     return;
   }

@@ -62,10 +62,13 @@ const swSource = readFileSync('coach/sw.js', 'utf8');
 const sw = (() => {
   const context = { self: { addEventListener() {}, location: { origin: 'https://www.dugcanlift.com' } } };
   vm.createContext(context);
-  vm.runInContext(swSource + '\n;this.cachesToDelete = cachesToDelete; this.CACHE = CACHE; this.SHELL = SHELL;', context);
+  vm.runInContext(swSource + '\n;this.cachesToDelete = cachesToDelete; this.CACHE = CACHE; this.SHELL = SHELL; this.MAP_ASSETS = MAP_ASSETS;', context);
   return context;
 })();
 
+// Cache Storage is per origin, and www.dugcanlift.com serves LIFT at /lift/ as
+// well as Coach at /coach/: Coach's service worker must never delete a cache
+// that is LIFT's, least of all the streets a LIFT user downloaded.
 test('the map tile cache survives an app update', () => {
   assert.deepEqual(
     sw.cachesToDelete(['coach-v43', 'coach-v44', 'coach-map-tiles'], 'coach-v44'),
@@ -73,20 +76,33 @@ test('the map tile cache survives an app update', () => {
   assert.deepEqual(sw.cachesToDelete(['coach-map-tiles'], sw.CACHE), []);
 });
 
-test("an old shell cache is still deleted", () => {
-  assert.deepEqual(sw.cachesToDelete(['coach-v1', 'coach-v44'], 'coach-v44'), ['coach-v1']);
+test("an update deletes only Coach's own old shell caches, never LIFT's or anyone else's", () => {
+  const keys = ['coach-v45', 'coach-v46', 'coach-map-tiles', sw.MAP_ASSETS, 'lift-v64', 'lift-map-tiles', 'other'];
+  assert.deepEqual(sw.cachesToDelete(keys, 'coach-v46'), ['coach-v45']);
+  assert.deepEqual(sw.cachesToDelete(['lift-v64', 'lift-map-tiles', 'lift-map-assets-45a9b07a'], sw.CACHE), []);
 });
 
-test('the install bundle carries the map script and its styles but not the 1 MB engine', () => {
-  assert.ok(sw.SHELL.includes('/coach/map/map.js'));
-  assert.ok(sw.SHELL.includes('/coach/map/style-light.json'));
-  assert.ok(sw.SHELL.includes('/coach/map/style-dark.json'));
+test("the engine's and glyphs' cache is named for the pinned engine, and an older one is pruned", () => {
+  assert.equal(sw.MAP_ASSETS, `coach-map-assets-${sha(readFileSync(`${MAP}/maplibre-gl.js`)).slice(0, 8)}`);
+  assert.deepEqual(
+    sw.cachesToDelete(['coach-map-assets-deadbeef', sw.MAP_ASSETS, 'coach-map-tiles', sw.CACHE], sw.CACHE),
+    ['coach-map-assets-deadbeef']);
+  // a shell bump leaves the current assets cache alone
+  assert.deepEqual(sw.cachesToDelete([sw.MAP_ASSETS, 'coach-v1'], sw.CACHE), ['coach-v1']);
+});
+
+test('the install bundle carries the map script, css, styles and license but not the engine or the glyphs', () => {
+  ['map.js', 'maplibre-gl.css', 'style-light.json', 'style-dark.json', 'LICENSE-maplibre.txt']
+    .forEach((f) => assert.ok(sw.SHELL.includes(`/coach/map/${f}`), f));
   assert.ok(!sw.SHELL.includes('/coach/map/maplibre-gl.js'), 'the engine is fetched on first use and kept');
+  assert.ok(!sw.SHELL.some((u) => u.endsWith('.pbf')), 'glyph ranges are fetched on first use and kept');
+  assert.ok(sw.SHELL.every((u) => !u.includes('/fonts/Noto')));
 });
 
-test('a map file that is neither saved nor reachable is a 404, never the app page', () => {
-  assert.match(swSource, /\/coach\/map\//);
+test('map files outside the install bundle are kept in the map-owned cache, and a miss is a 404', () => {
+  assert.match(swSource, /caches\.open\(MAP_ASSETS\)/);
   assert.match(swSource, /status: 404/);
+  assert.match(swSource, /\/coach\/map\//);
 });
 
 /* ---------------- who may reach beyond dugcanlift.com ---------------- */
