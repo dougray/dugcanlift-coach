@@ -657,7 +657,10 @@ function renderClient() {
  * drawn on a canvas, and over streets once the coach has downloaded the area
  * (map/map.js, the kit's module). Viewing a map asks for nothing but this
  * app's own files; the only request to a map server is a download the coach
- * starts, so no server learns where a client runs while anyone looks at it. */
+ * starts. That download tells the map server the tile coordinates of the area
+ * around the client's route (so, roughly where the client runs) and the
+ * coach's IP address; nothing goes to the developer, and nothing is asked for
+ * while anyone looks at a map. */
 
 const hasOutdoor = (day) => !!(day && day.outdoor && day.outdoor.length);
 

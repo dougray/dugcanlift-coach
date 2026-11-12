@@ -4,7 +4,7 @@
  * shell file changes, or browsers will keep serving the old one.
  */
 
-const CACHE = 'coach-v47';
+const CACHE = 'coach-v48';
 
 // The street map's engine (MapLibre, 1 MB) and its glyph ranges are not in
 // the install bundle: they are fetched the first time a map is shown and kept

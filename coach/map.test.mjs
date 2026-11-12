@@ -34,6 +34,11 @@ test("the map files are the kit's, byte for byte", () => {
   });
 });
 
+test("the kit's tile-size fixture is shipped with the map files and listed in its manifest", () => {
+  assert.ok(manifest.some((m) => m.listed === 'tile-size-sample.json'));
+  assert.ok(readFileSync(`${MAP}/tile-size-sample.json`).length > 0);
+});
+
 test('nothing sits in coach/map that the kit manifest does not list', () => {
   const listed = new Set(manifest.map((m) => m.here));
   const extra = filesUnder(MAP).filter((f) => f !== 'map-files.sha256' && !listed.has(f));

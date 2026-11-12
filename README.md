@@ -284,15 +284,17 @@ service worker's install bundle.
 A client's last route is drawn over streets once the coach has downloaded the
 area around it: **Download streets for this route**, under the route, or
 Connect → *Maps* to update or delete what is saved. The module is
-dugcanlift-kit's `map/` folder, shared with LIFT web, copied byte for byte into
+dugcanlift-kit's `map/` folder (tag 1.18.1), shared with LIFT web, copied byte for byte into
 `coach/map/` (`map.js`, MapLibre GL JS 5.24.0, the two styles, the Noto Sans
-glyph ranges and their licenses). `coach/map/map-files.sha256` is the kit's
+glyph ranges, `tile-size-sample.json` and the licenses). `coach/map/map-files.sha256` is the kit's
 manifest, and `map.test.mjs` hashes every file against it. When the kit
 changes, copy its `map/` folder over with the new manifest and bump `CACHE`;
 never edit a file in `coach/map/`, and never rewrite a manifest line by hand.
 
 The one request to a map server is a download the coach starts, from `map.js`
-to OpenFreeMap, and the sheet says so first. Looking at a map asks for nothing
+to OpenFreeMap, and the sheet says so first. It tells OpenFreeMap the tile
+coordinates of the area around the client's route, so roughly where the client
+runs, and the coach's IP address. Nothing goes to the developer. Looking at a map asks for nothing
 but this app's own files: tiles come out of Cache Storage (`coach-map-tiles`),
 which the service worker keeps across updates. The 1 MB MapLibre script is not
 in the page or the install bundle; `app.js` loads it the first time a downloaded
