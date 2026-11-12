@@ -4,7 +4,7 @@
  * shell file changes, or browsers will keep serving the old one.
  */
 
-const CACHE = 'coach-v45';
+const CACHE = 'coach-v46';
 
 const SHELL = [
   '/coach/',
@@ -31,6 +31,7 @@ const SHELL = [
   // The street map's own script and styles are small, so they install with the
   // shell. MapLibre itself (1 MB, 276 KB on the wire) is not here: it is
   // fetched the first time a map is wanted and kept, like foods.json.
+  '/coach/street-offer.js',
   '/coach/map/map.js',
   '/coach/map/style-light.json',
   '/coach/map/style-dark.json',

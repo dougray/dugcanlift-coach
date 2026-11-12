@@ -754,25 +754,42 @@ function mountRouteMap(holder, points) {
   if (LiftMap.areas().length) wake();
 }
 
+/** Downloads on screen or running, by route key: a re-render finds its sheet here instead of wiping it. */
+const streetRuns = new Map();
+
 /**
  * The download sheet, in place of the button it was opened from. `opts`:
  * plan, name, note (an extra line), areaId (to pick up an unfinished area),
- * onDone(area) (a promise: Update deletes the old area here) and onClose().
- * The words are the kit's (LiftMap.copy).
+ * key (the route, so a re-render can find the sheet again), onDone(area) (a
+ * promise: Update deletes the old area here) and onClose(box). The words are
+ * the kit's (LiftMap.copy). The run outlives its box: when the page is drawn
+ * again, `resumeStreetsSheet` puts the same sheet, with its progress, in the
+ * new one.
  */
 function openStreetsSheet(box, opts) {
   const words = LiftMap.copy;
-  let areaId = opts.areaId || null;
-  let controller = null;
+  const run = {
+    box, areaId: opts.areaId || null, controller: null, state: 'idle',
+    bar: null, done: 0, total: opts.plan.tiles.length,
+  };
+  if (opts.key) streetRuns.set(opts.key, run);
   box.dataset.sheet = '1';
-  const close = () => { delete box.dataset.sheet; box.innerHTML = ''; opts.onClose(); };
+
+  const close = () => {
+    if (opts.key && streetRuns.get(opts.key) === run) streetRuns.delete(opts.key);
+    const where = run.box;
+    delete where.dataset.sheet;
+    where.innerHTML = '';
+    opts.onClose(where);
+  };
 
   const frame = () => {
-    box.innerHTML = '';
+    run.box.innerHTML = '';
+    run.bar = null;
     const card = el('div', 'card streets-sheet');
     card.appendChild(el('strong', 'cardtitle', words.title));
     card.appendChild(el('p', null, opts.name));
-    box.appendChild(card);
+    run.box.appendChild(card);
     return card;
   };
   const buttons = (card, ...pairs) => {
@@ -785,59 +802,87 @@ function openStreetsSheet(box, opts) {
     card.appendChild(row);
   };
 
-  const idle = () => {
+  run.paint = () => {
     const card = frame();
-    card.appendChild(el('p', null, LiftMap.sizeText(opts.plan.estimatedBytes)));
-    card.appendChild(el('p', 'muted small', words.source));
-    card.appendChild(el('p', 'muted small', words.serverLearns));
-    if (opts.note) card.appendChild(el('p', 'muted small', opts.note));
-    buttons(card, [words.download, null, start], [words.cancel, 'ghost', close]);
-  };
-
-  const failed = () => {
-    const card = frame();
-    card.appendChild(el('p', null, words.failure));
-    buttons(card, [words.tryAgain, null, start], [words.cancel, 'ghost', close]);
+    if (run.state === 'busy') {
+      card.appendChild(el('p', null, words.downloading));
+      run.bar = el('progress');
+      run.bar.max = run.total || 1;
+      run.bar.value = run.done;
+      card.appendChild(run.bar);
+      buttons(card, [words.cancel, 'ghost', () => run.controller.abort()]);
+    } else if (run.state === 'failed') {
+      card.appendChild(el('p', null, words.failure));
+      buttons(card, [words.tryAgain, null, start], [words.cancel, 'ghost', close]);
+    } else {
+      card.appendChild(el('p', null, LiftMap.sizeText(opts.plan.estimatedBytes)));
+      card.appendChild(el('p', 'muted small', words.source));
+      card.appendChild(el('p', 'muted small', words.serverLearns));
+      if (opts.note) card.appendChild(el('p', 'muted small', opts.note));
+      buttons(card, [words.download, null, start], [words.cancel, 'ghost', close]);
+    }
   };
 
   function start() {
-    controller = new AbortController();
-    const card = frame();
-    card.appendChild(el('p', null, words.downloading));
-    const bar = el('progress');
-    bar.max = opts.plan.tiles.length || 1;
-    bar.value = 0;
-    card.appendChild(bar);
-    buttons(card, [words.cancel, 'ghost', () => controller.abort()]);
-    const progress = (done, total) => { bar.max = total || 1; bar.value = done; };
-    const signal = controller.signal;
-    const job = areaId
-      ? LiftMap.resume(areaId, opts.plan, progress, { signal })
+    run.controller = new AbortController();
+    run.state = 'busy';
+    run.done = 0;
+    run.total = opts.plan.tiles.length;
+    run.paint();
+    const progress = (done, total) => {
+      run.done = done;
+      run.total = total || 1;
+      if (run.bar) { run.bar.max = run.total; run.bar.value = done; }
+    };
+    const signal = run.controller.signal;
+    const job = run.areaId
+      ? LiftMap.resume(run.areaId, opts.plan, progress, { signal })
       : LiftMap.download(opts.plan, opts.name, progress, { signal });
     job
       .then((area) => (opts.onDone ? opts.onDone(area) : null))
       .then(close, (e) => {
         if (e && e.code === 'cancelled') { close(); return; }
-        if (e && e.areaId) areaId = e.areaId;
-        failed();
+        if (e && e.areaId) run.areaId = e.areaId;
+        run.state = 'failed';
+        run.paint();
       });
   }
 
-  idle();
+  run.paint();
+}
+
+/** Puts a running or failed sheet back after the page was drawn again; false when there is none. */
+function resumeStreetsSheet(key, box) {
+  const run = streetRuns.get(key);
+  if (!run) return false;
+  run.box = box;
+  box.dataset.sheet = '1';
+  run.paint();
+  return true;
 }
 
 /** Under the route: the offer to download its streets, until they are downloaded. */
 function renderStreetsOffer(box, client, points) {
   box.innerHTML = '';
-  if (!hasStreetMaps || box.dataset.sheet) return;
-  const bounds = LiftMap.around(points);
-  if (!bounds || LiftMap.covers(bounds)) return;
+  if (!hasStreetMaps) return;
+  const bounds = points.length >= 2 ? LiftMap.around(points) : null;
+  const key = bounds
+    ? `${client.id}|${[bounds.south, bounds.west, bounds.north, bounds.east].map((n) => n.toFixed(5)).join(',')}`
+    : null;
+  const choice = CoachStreetOffer.decide({
+    pointCount: bounds ? points.length : 0,
+    covered: !!bounds && LiftMap.covers(bounds),
+    running: !!key && !!streetRuns.get(key),
+  });
+  if (choice === 'sheet') { resumeStreetsSheet(key, box); return; }
+  if (choice !== 'button') return;
   const button = el('button', 'ghost wide', LiftMap.copy.forThisRoute);
   button.onclick = () => openStreetsSheet(box, {
     plan: LiftMap.planForRoute(bounds),
     name: `${client.name}'s route`,
     note: "This asks for the area around your client's route.",
-    onClose: () => renderStreetsOffer(box, client, points),
+    key,
+    onClose: (where) => renderStreetsOffer(where, client, points),
   });
   box.appendChild(button);
 }

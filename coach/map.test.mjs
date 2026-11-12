@@ -159,3 +159,42 @@ test('licences for the map are credited on the page and in NOTICE', () => {
     assert.ok(readFileSync('NOTICE', 'utf8').includes(name), `NOTICE credits ${name}`);
   });
 });
+
+/* ---------------- the download offer's decision ---------------- */
+
+// street-offer.js is the one place that decides whether the route card offers a
+// download, shows a download already running, or says nothing. It is a pure
+// function because the rule lives in no view's state, and because getting it
+// wrong either offers a map for a route that cannot draw one or starts a second
+// download of the same route while the first is running unseen.
+const offerShim = { window: {} };
+new Function('window', readFileSync('coach/street-offer.js', 'utf8')).call(offerShim, offerShim.window);
+const decide = offerShim.window.CoachStreetOffer.decide;
+
+test('a route that cannot draw a map is never offered a download', () => {
+  assert.equal(decide({ pointCount: 0, covered: false, running: false }), 'none');
+  assert.equal(decide({ pointCount: 1, covered: false, running: false }), 'none');
+  assert.equal(decide({ pointCount: 1, covered: false, running: true }), 'none');
+});
+
+test('an uncovered route with two or more points is offered the button', () => {
+  assert.equal(decide({ pointCount: 2, covered: false, running: false }), 'button');
+});
+
+test('a covered route is offered nothing', () => {
+  assert.equal(decide({ pointCount: 50, covered: true, running: false }), 'none');
+});
+
+test('while a download of this route runs, the sheet stays and the button is never offered again', () => {
+  assert.equal(decide({ pointCount: 50, covered: false, running: true }), 'sheet');
+  // finished a moment before the sheet closes: it is still the sheet's to close
+  assert.equal(decide({ pointCount: 50, covered: true, running: true }), 'sheet');
+});
+
+test('the card hands the decision to it and keeps a running sheet across a re-render', () => {
+  assert.match(app, /CoachStreetOffer\.decide\(/);
+  assert.match(app, /streetRuns\.get\(key\)/);
+  assert.ok(html.indexOf('src="street-offer.js"') > 0);
+  assert.ok(html.indexOf('src="street-offer.js"') < html.indexOf('src="app.js"'));
+  assert.ok(sw.SHELL.includes('/coach/street-offer.js'));
+});
