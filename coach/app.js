@@ -653,9 +653,14 @@ function renderClient() {
  *
  * What the client ran, walked and hiked, from SHARE-FORMAT.md "Outdoor". The
  * reading and formatting rules are route.js. The map is the client's newest
- * route with its first and last 200 m already cut off by their app, drawn on a
- * canvas rather than street tiles -- a map server would otherwise learn where
- * the client runs. */
+ * route with its first and last 200 m already cut off by their app. It is
+ * drawn on a canvas, and over streets once the coach has downloaded the area
+ * (map/map.js, the kit's module). Viewing a map asks for nothing but this
+ * app's own files; the only request to a map server is a download the coach
+ * starts. That download tells the map server the tile coordinates of the area
+ * around the client's route (so, roughly where the client runs) and the
+ * coach's IP address; nothing goes to the developer, and nothing is asked for
+ * while anyone looks at a map. */
 
 const hasOutdoor = (day) => !!(day && day.outdoor && day.outdoor.length);
 
@@ -683,6 +688,261 @@ function drawRoute(canvas, points, aspect) {
   dot(pts[pts.length - 1], 6, accent);
 }
 
+/* ---------------- street maps ----------------
+ *
+ * map/map.js is dugcanlift-kit's module, copied byte for byte and pinned by
+ * map.test.mjs. This is only the wiring: where the route is drawn, the
+ * download offer under it, and the Maps list in Connect. MapLibre itself
+ * (1 MB) is not a script tag: it is loaded the first time a downloaded area
+ * could be shown, and the service worker keeps it, so a coach who never
+ * downloads a map never pays for it. */
+
+const hasStreetMaps = typeof LiftMap !== 'undefined';
+if (hasStreetMaps) {
+  LiftMap.configure({
+    cachePrefix: 'coach-map-',
+    storageKey: 'coach.mapAreas',
+    base: '/coach/map/',
+  });
+}
+
+let mapEnginePromise = null;
+/** Resolves true once window.maplibregl exists, false if it cannot be loaded (offline before first use). */
+function loadMapEngine() {
+  if (window.maplibregl) return Promise.resolve(true);
+  if (!mapEnginePromise) {
+    mapEnginePromise = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'map/maplibre-gl.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => { script.remove(); mapEnginePromise = null; resolve(false); };
+      document.head.appendChild(script);
+    });
+  }
+  return mapEnginePromise;
+}
+
+/** The route currently on screen, so the next render lets go of its map. */
+let routeView = null;
+
+function clearRouteView() {
+  if (routeView) routeView.stop();
+  routeView = null;
+}
+
+/** The plain line, which is what every route is until its streets are downloaded. */
+function lineInto(container, points) {
+  container.innerHTML = '';
+  const canvas = el('canvas', 'route');
+  container.appendChild(canvas);
+  drawRoute(canvas, points, 2);
+}
+
+function mountRouteMap(holder, points) {
+  if (!hasStreetMaps) { lineInto(holder, points); return; }
+  const dark = () => LiftAppearance.resolved() === 'dark';
+  const handle = LiftMap.mount(holder, points, {
+    aspect: 2,
+    dark: dark(),
+    fallback: (container) => lineInto(container, points),
+  });
+  const view = { handle, stop: null };
+  const wake = () => loadMapEngine().then((ready) => {
+    if (ready && routeView === view) handle.update(points, { dark: dark() });
+  });
+  // A download finishing (here or in another tab) is when a map becomes possible.
+  window.addEventListener('liftmap:changed', wake);
+  view.stop = () => { window.removeEventListener('liftmap:changed', wake); handle.destroy(); };
+  routeView = view;
+  if (LiftMap.areas().length) wake();
+}
+
+/** Downloads on screen or running, by route key: a re-render finds its sheet here instead of wiping it. */
+const streetRuns = new Map();
+
+/**
+ * The download sheet, in place of the button it was opened from. `opts`:
+ * plan, name, note (an extra line), areaId (to pick up an unfinished area),
+ * key (the route, so a re-render can find the sheet again), onDone(area) (a
+ * promise: Update deletes the old area here) and onClose(box). The words are
+ * the kit's (LiftMap.copy). The run outlives its box: when the page is drawn
+ * again, `resumeStreetsSheet` puts the same sheet, with its progress, in the
+ * new one.
+ */
+function openStreetsSheet(box, opts) {
+  const words = LiftMap.copy;
+  const run = {
+    box, areaId: opts.areaId || null, controller: null, state: 'idle',
+    bar: null, done: 0, total: opts.plan.tiles.length,
+  };
+  if (opts.key) streetRuns.set(opts.key, run);
+  box.dataset.sheet = '1';
+
+  const close = () => {
+    if (opts.key && streetRuns.get(opts.key) === run) streetRuns.delete(opts.key);
+    const where = run.box;
+    delete where.dataset.sheet;
+    where.innerHTML = '';
+    opts.onClose(where);
+  };
+
+  const frame = () => {
+    run.box.innerHTML = '';
+    run.bar = null;
+    const card = el('div', 'card streets-sheet');
+    card.appendChild(el('strong', 'cardtitle', words.title));
+    card.appendChild(el('p', null, opts.name));
+    run.box.appendChild(card);
+    return card;
+  };
+  const buttons = (card, ...pairs) => {
+    const row = el('div', 'row');
+    pairs.forEach(([label, cls, fn]) => {
+      const b = el('button', cls, label);
+      b.onclick = fn;
+      row.appendChild(b);
+    });
+    card.appendChild(row);
+  };
+
+  run.paint = () => {
+    const card = frame();
+    if (run.state === 'busy') {
+      card.appendChild(el('p', null, words.downloading));
+      run.bar = el('progress');
+      run.bar.max = run.total || 1;
+      run.bar.value = run.done;
+      card.appendChild(run.bar);
+      buttons(card, [words.cancel, 'ghost', () => run.controller.abort()]);
+    } else if (run.state === 'failed') {
+      card.appendChild(el('p', null, words.failure));
+      buttons(card, [words.tryAgain, null, start], [words.cancel, 'ghost', close]);
+    } else {
+      card.appendChild(el('p', null, LiftMap.sizeText(opts.plan.estimatedBytes)));
+      card.appendChild(el('p', 'muted small', words.source));
+      card.appendChild(el('p', 'muted small', words.serverLearns));
+      if (opts.note) card.appendChild(el('p', 'muted small', opts.note));
+      buttons(card, [words.download, null, start], [words.cancel, 'ghost', close]);
+    }
+  };
+
+  function start() {
+    run.controller = new AbortController();
+    run.state = 'busy';
+    run.done = 0;
+    run.total = opts.plan.tiles.length;
+    run.paint();
+    const progress = (done, total) => {
+      run.done = done;
+      run.total = total || 1;
+      if (run.bar) { run.bar.max = run.total; run.bar.value = done; }
+    };
+    const signal = run.controller.signal;
+    const job = run.areaId
+      ? LiftMap.resume(run.areaId, opts.plan, progress, { signal })
+      : LiftMap.download(opts.plan, opts.name, progress, { signal });
+    job
+      .then((area) => (opts.onDone ? opts.onDone(area) : null))
+      .then(close, (e) => {
+        if (e && e.code === 'cancelled') { close(); return; }
+        if (e && e.areaId) run.areaId = e.areaId;
+        run.state = 'failed';
+        run.paint();
+      });
+  }
+
+  run.paint();
+}
+
+/** Puts a running or failed sheet back after the page was drawn again; false when there is none. */
+function resumeStreetsSheet(key, box) {
+  const run = streetRuns.get(key);
+  if (!run) return false;
+  run.box = box;
+  box.dataset.sheet = '1';
+  run.paint();
+  return true;
+}
+
+/** Under the route: the offer to download its streets, until they are downloaded. */
+function renderStreetsOffer(box, client, points) {
+  box.innerHTML = '';
+  if (!hasStreetMaps) return;
+  const bounds = points.length >= 2 ? LiftMap.around(points) : null;
+  const key = bounds
+    ? `${client.id}|${[bounds.south, bounds.west, bounds.north, bounds.east].map((n) => n.toFixed(5)).join(',')}`
+    : null;
+  const choice = CoachStreetOffer.decide({
+    pointCount: bounds ? points.length : 0,
+    covered: !!bounds && LiftMap.covers(bounds),
+    running: !!key && !!streetRuns.get(key),
+  });
+  if (choice === 'sheet') { resumeStreetsSheet(key, box); return; }
+  if (choice !== 'button') return;
+  const button = el('button', 'ghost wide', LiftMap.copy.forThisRoute);
+  button.onclick = () => openStreetsSheet(box, {
+    plan: LiftMap.planForRoute(bounds),
+    name: `${client.name}'s route`,
+    note: "This asks for the area around your client's route.",
+    key,
+    onClose: (where) => renderStreetsOffer(where, client, points),
+  });
+  box.appendChild(button);
+}
+
+/** Connect → Maps: what is downloaded, Update, Delete, and an unfinished one's Try again. */
+function renderMaps() {
+  const panel = $('#maps-panel');
+  if (!hasStreetMaps) { panel.classList.add('hidden'); return; }
+  const list = $('#maps-list');
+  if (list.querySelector('[data-sheet]')) return; // a download is on screen; it redraws when it ends
+  const words = LiftMap.copy;
+  list.innerHTML = '';
+  $('#maps-footer').textContent = words.mapsFooter;
+
+  const row = (area, detail, actions) => {
+    const box = el('div', 'maps-row');
+    box.appendChild(el('strong', null, area.name));
+    box.appendChild(el('div', 'muted small', detail));
+    const bar = el('div', 'row');
+    actions(bar, box);
+    box.appendChild(bar);
+    list.appendChild(box);
+  };
+  const act = (bar, label, cls, fn) => {
+    const b = el('button', cls, label);
+    b.onclick = fn;
+    bar.appendChild(b);
+  };
+  const remove = (area) => {
+    if (!confirm(`${words.deleteTitle(area.name)}\n\n${words.deleteMessage}`)) return;
+    LiftMap.deleteArea(area.id).then(renderMaps, renderMaps);
+  };
+  // A sheet takes the row's place; the sheet's own close redraws the list.
+  const sheet = (area, extra) => {
+    list.innerHTML = '';
+    const box = el('div');
+    list.appendChild(box);
+    openStreetsSheet(box, Object.assign({
+      plan: LiftMap.replan(area), name: area.name, onClose: renderMaps,
+    }, extra));
+  };
+
+  const finished = LiftMap.areas();
+  finished.forEach((area) => row(area, LiftMap.detailLine(area), (bar) => {
+    act(bar, words.update, 'ghost', () => sheet(area, { onDone: () => LiftMap.deleteArea(area.id) }));
+    act(bar, words.delete, 'ghost', () => remove(area));
+  }));
+  LiftMap.unfinishedAreas().forEach((area) => row(area, words.notFinished, (bar) => {
+    act(bar, words.tryAgain, 'ghost', () => sheet(area, { areaId: area.id }));
+    act(bar, words.delete, 'ghost', () => remove(area));
+  }));
+  if (!finished.length && !LiftMap.unfinishedAreas().length) {
+    list.appendChild(el('p', 'muted', words.noStreets));
+  }
+}
+if (hasStreetMaps) window.addEventListener('liftmap:changed', renderMaps);
+
 function outdoorStats(parent, stats) {
   const grid = el('div', 'stats');
   stats.forEach(([label, value]) => {
@@ -696,6 +956,7 @@ function outdoorStats(parent, stats) {
 
 function renderOutdoor(client, unit) {
   const node = $('#client-outdoor');
+  clearRouteView();
   node.innerHTML = '';
   const du = CoachRoute.distanceUnit(unit);
   const recent = dayKeys(client).filter((k) => hasOutdoor(client.days[k])).reverse();
@@ -713,8 +974,8 @@ function renderOutdoor(client, unit) {
   if (route) {
     const card = el('div', 'card');
     card.appendChild(el('strong', 'cardtitle', 'Last route'));
-    const canvas = el('canvas', 'route');
-    card.appendChild(canvas);
+    const holder = el('div', 'routemap');
+    card.appendChild(holder);
     const line = el('div', 'routeline');
     line.appendChild(el('span', null, CoachRoute.typeLabel(route.type)));
     line.appendChild(el('span', 'muted', new Date(route.startedAt).toLocaleDateString(undefined,
@@ -726,11 +987,14 @@ function renderOutdoor(client, unit) {
       ['Pace', CoachRoute.activityPace(route.distanceM, route.durationSec, du) || '—'],
     ]);
     card.appendChild(el('p', 'muted small', 'The first and last 200 m are left off by the client\'s app.'));
+    const offer = el('div', 'streets-offer');
+    card.appendChild(offer);
+    renderStreetsOffer(offer, client, route.points);
     node.appendChild(card);
     // Drawn once every outdoor card is in: on a wide screen the cards share a
     // grid, and the route card is only full width until its neighbours arrive.
     // Measured any earlier, the map is drawn for a card twice its final width.
-    drawRouteAfter = () => drawRoute(canvas, route.points, 2);
+    drawRouteAfter = () => mountRouteMap(holder, route.points);
   }
 
   if (bests) {
@@ -1454,6 +1718,7 @@ function inviteText() {
 }
 
 function renderConnect() {
+  renderMaps();
   $('#coach-name').value = settings.name;
   $('#coach-email').value = settings.email;
   $('#invite-text').textContent = inviteText();

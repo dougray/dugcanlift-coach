@@ -609,6 +609,16 @@ canvas.route {
   box-shadow: inset 0 0 0 1px var(--rule);
   margin: 4px 0 10px;
 }
+.routemap { margin: 4px 0 10px; border-radius: 12px; }
+.routemap canvas.route { margin: 0; }
+.routemap .liftmap { box-shadow: inset 0 0 0 1px var(--rule); }
+.streets-offer:empty { display: none; }
+.streets-sheet { margin: 8px 0 0; }
+.streets-sheet progress { width: 100%; display: block; margin: 6px 0 12px; accent-color: var(--accent); }
+.maps-row { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.maps-row:last-of-type { border-bottom: 0; }
+.maps-row .row { margin-top: 8px; }
+.licenses summary { cursor: pointer; margin-top: 8px; }
 .routeline { display: flex; gap: 8px; font-weight: 700; margin-bottom: 8px; }
 .routeline .muted { margin: 0; font-weight: 600; }
 .stats {
