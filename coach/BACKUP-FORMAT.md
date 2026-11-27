@@ -91,7 +91,12 @@ is optional, and absent means not prescribed, never zero.
 (`RUN` | `WALK` | `HIKE`), `startedAtEpochMs`, `endedAtEpochMs`,
 `distanceMeters`, `elevationGainMeters`, and `routePoints[]` of `latitude`,
 `longitude`, `altitudeMeters` (`null` when the device reported none),
-`recordedAtEpochMs`, `horizontalAccuracyMeters`. Field names are LIFT for
+`recordedAtEpochMs`, `horizontalAccuracyMeters`. Optional `averageBpm` and
+`maxBpm` (whole beats per minute) and `heartRateSource` (the name of where they
+came from: a Bluetooth strap, a watch, Health or Health Connect) carry the run's
+heart rate; each is omitted when unknown, never written as `null` or `0`, and a
+value that is not a whole positive number restores as unknown. No per-second
+heart rate readings are stored or carried. Field names are LIFT for
 Android's own storage. All three LIFT builds write and restore it. Restore
 adds activities whose `id` the device does not already have, compared
 case-insensitively; an activity with no end or an unknown type is skipped. A
